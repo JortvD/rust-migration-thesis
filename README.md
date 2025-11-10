@@ -65,7 +65,7 @@ Many (open-source) software projects have migrated to or are migrating to Rust. 
 
 This thesis aims to examine which migration strategies are used and how effective they are at reducing technical debt. I will conduct a quantitative analysis of technical debt before and after migration, using heuristics derived from code analysis. Additionally, I will conduct qualitative interviews to gain an (empirical) understanding of the developers' strategies and experiences.
 
-The findings will help organizations and developers determine whether migrating to Rust may be beneficial in their case and, if so, which strategies most effectively reduce technical debt. In terms of novelty, I could not find any previous research broadly examining migration to Rust.
+The results will help organizations and developers determine whether migrating to Rust may be beneficial in their case and, if so, which strategies most effectively reduce technical debt. In terms of novelty, I could not find any previous research broadly examining migration to Rust.
 
 ## Phase planning
 
