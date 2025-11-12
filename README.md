@@ -4,12 +4,12 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 ## Research questions
 
 ### Main research question
-> In open-source software projects, how does migration to Rust affect reduction of technical debt?
+> In open-source software projects, how does migration to Rust affect the reduction of technical debt?
 
 (Notes: "affect" is still broadly interpretable and implies causality, maybe use "relate to a"?)
 
 ### Subquestion 1
-> Which open-source projects have migrated or are in the process of migrating from another programming language to Rust?
+> Which open-source projects have migrated, or are in the process of migrating, from different programming language to Rust?
 
 (Notes: should question include extend?)
 
@@ -22,7 +22,7 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 - Q.D: Do I already separate different projects by how they migrate (eg fully or partially, are as replacement or as addition, official or unofficial)? -> ?
 
 ### Subquestion 2
-> What types of technical debt or other factors cause these projects to migrate?
+> What types of technical debt or other factors cause these projects to be migrated?
 
 (Notes: "or other factors" feels weird, but using only technical debt might miss developer stated reason. Also "cause" implies causality)
 
@@ -32,7 +32,7 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 - Qualitative interview with project (lead) developers
 
 ### Subquestion 3
-> What strategies are used during the migration process?
+> What strategies are employed during the migration process?
 
 (Notes: still broad. Should I include "... to reduce technical debt"?)
 
