@@ -1,0 +1,218 @@
+{
+    "rust-lang/rust": {
+        "migrated": false,
+        "status": "success"
+    },
+    "denoland/deno": {
+        "migrated": false,
+        "status": "success"
+    },
+    "rustdesk/rustdesk": {
+        "migrated": false,
+        "status": "success"
+    },
+    "tauri-apps/tauri": {
+        "migrated": false,
+        "status": "success"
+    },
+    "unionlabs/union": {
+        "migrated": false,
+        "status": "success"
+    },
+    "topjohnwu/Magisk": {
+        "migrated": true,
+        "status": "success"
+    },
+    "astral-sh/uv": {
+        "migrated": false,
+        "status": "success"
+    },
+    "zed-industries/zed": {
+        "migrated": false,
+        "status": "success"
+    },
+    "FuelLabs/sway": {
+        "migrated": false,
+        "status": "success"
+    },
+    "alacritty/alacritty": {
+        "migrated": false,
+        "status": "success"
+    },
+    "rust-lang/rustlings": {
+        "migrated": false,
+        "status": "success"
+    },
+    "FuelLabs/fuel-core": {
+        "migrated": false,
+        "status": "success"
+    },
+    "BurntSushi/ripgrep": {
+        "migrated": false,
+        "status": "success"
+    },
+    "sharkdp/bat": {
+        "migrated": false,
+        "status": "success"
+    },
+    "meilisearch/meilisearch": {
+        "migrated": false,
+        "status": "success"
+    },
+    "lencx/ChatGPT": {
+        "migrated": false,
+        "status": "success"
+    },
+    "rust-unofficial/awesome-rust": {
+        "migrated": false,
+        "status": "success"
+    },
+    "starship/starship": {
+        "migrated": false,
+        "status": "success"
+    },
+    "dani-garcia/vaultwarden": {
+        "migrated": true,
+        "status": "success"
+    },
+    "openai/codex": {
+        "migrated": true,
+        "status": "success"
+    },
+    "typst/typst": {
+        "migrated": false,
+        "status": "success"
+    },
+    "astral-sh/ruff": {
+        "migrated": false,
+        "status": "success"
+    },
+    "FuelLabs/fuels-rs": {
+        "migrated": false,
+        "status": "success"
+    },
+    "tw93/Pake": {
+        "migrated": false,
+        "status": "success"
+    },
+    "bevyengine/bevy": {
+        "migrated": false,
+        "status": "success"
+    },
+    "helix-editor/helix": {
+        "migrated": false,
+        "status": "success"
+    },
+    "sharkdp/fd": {
+        "migrated": false,
+        "status": "success"
+    },
+    "juspay/hyperswitch": {
+        "migrated": false,
+        "status": "success"
+    },
+    "lapce/lapce": {
+        "migrated": false,
+        "status": "success"
+    },
+    "nushell/nushell": {
+        "migrated": false,
+        "status": "success"
+    },
+    "pola-rs/polars": {
+        "migrated": false,
+        "status": "success"
+    },
+    "servo/servo": {
+        "migrated": true,
+        "status": "success"
+    },
+    "swc-project/swc": {
+        "migrated": true,
+        "status": "success"
+    },
+    "TabbyML/tabby": {
+        "migrated": false,
+        "status": "success"
+    },
+    "google/comprehensive-rust": {
+        "migrated": false,
+        "status": "success"
+    },
+    "yewstack/yew": {
+        "migrated": false,
+        "status": "success"
+    },
+    "linera-io/linera-protocol": {
+        "migrated": false,
+        "status": "success"
+    },
+    "DioxusLabs/dioxus": {
+        "migrated": false,
+        "status": "success"
+    },
+    "GyulyVGC/sniffnet": {
+        "migrated": false,
+        "status": "success"
+    },
+    "fish-shell/fish-shell": {
+        "migrated": true,
+        "status": "success"
+    },
+    "firecracker-microvm/firecracker": {
+        "migrated": true,
+        "status": "success"
+    },
+    "ajeetdsouza/zoxide": {
+        "migrated": false,
+        "status": "success"
+    },
+    "influxdata/influxdb": {
+        "migrated": true,
+        "status": "success"
+    },
+    "surrealdb/surrealdb": {
+        "migrated": false,
+        "status": "success"
+    },
+    "tokio-rs/tokio": {
+        "migrated": false,
+        "status": "success"
+    },
+    "sxyazi/yazi": {
+        "migrated": false,
+        "status": "success"
+    },
+    "sunface/rust-course": {
+        "migrated": false,
+        "status": "success"
+    },
+    "vercel/turborepo": {
+        "migrated": true,
+        "status": "success"
+    },
+    "casey/just": {
+        "migrated": false,
+        "status": "success"
+    },
+    "iced-rs/iced": {
+        "migrated": false,
+        "status": "success"
+    },
+    "dandavison/delta": {
+        "migrated": false,
+        "status": "success"
+    },
+    "emilk/egui": {
+        "migrated": false,
+        "status": "success"
+    },
+    "zellij-org/zellij": {
+        "migrated": false,
+        "status": "success"
+    },
+    "qdrant/qdrant": {
+        "migrated": false,
+        "status": "success"
+    }
+}
