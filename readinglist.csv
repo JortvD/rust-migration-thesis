@@ -1,7 +1,8 @@
 Status,Title,Author,Year,Type,Link,Venue,Reason,Notes
 Read,Automically Translating C to Rust,Hong et al.,2025,Magazine article,https://doi.org/10.1145/3737696,ACM's CACM,Background on migr. strategy,
-To Read,How Does Migration to Microservices Happen? A Survey of the Finnish Software Industry,Tuusjärvi et al.,2024,Workshop paper,https://ceur-ws.org/Vol-3776/paper03.pdf,CEUR-WS TKTP 2024,Similar approach to interviews,
-To Read,Does migrating a monolithic system to microservices decrease the technical debt?,Lenarduzzi et al.,2020,Journal article,https://doi.org/10.1016/j.jss.2020.110710,Elsevier's Journal of Systems and Software,Similar approach to tech. debt analysis,
+Read,How Does Migration to Microservices Happen? A Survey of the Finnish Software Industry,Tuusjärvi et al.,2024,Workshop paper,https://ceur-ws.org/Vol-3776/paper03.pdf,CEUR-WS TKTP 2024,Similar approach to interviews,
+Read,"Does migrating a monolithic system to microservices decrease the technical debt?",Lenarduzzi et al.,2020,Journal article,https://doi.org/10.1016/j.jss.2020.110710,Elsevier's Journal of Systems and Software,"Similar approach to tech. debt analysis",
+To Read,Guidelines for conducting and reporting case study research in software engineering,Runeson et al.,2008,Journal article,https://doi.org/10.1007/s10664-008-9102-8,Springer Emperical Software Engineering,General idea of case study,
 To Read,Why Did Developers Migrate Android Applications From Java to Kotlin?,Martinez et al.,2021,Journal article,https://doi.org/10.1109/TSE.2021.3120367,IEEE Transactions on Software Engineering,Similar approach to interviews,
 To Read,Benefits and drawbacks of adopting a secure programming language: rust as a case study,Fulton et al.,2021,Conference paper,https://dl.acm.org/doi/10.5555/3563572.3563603,USENIX SOUPS 2021,"Also did interviews, but about using Rust in general",
 To Read,"An empirical study of rust-for-Linux: the success, dissatisfaction, and compromise",Li et al.,2024,Conference paper,https://dl.acm.org/doi/10.5555/3691992.3692019,USENIX ATC '24,On reduction of kernel vuln. by using Rust instead,
