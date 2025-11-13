@@ -4,14 +4,10 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 ## Research questions
 
 ### Main research question
-> In open-source software projects, how does migration to Rust affect the reduction of technical debt?
-
-(Notes: "affect" is still broadly interpretable and implies causality, maybe use "relate to a"?)
+> How does migration to Rust relate to changes in the quality of open-source software projects?
 
 ### Subquestion 1
-> Which open-source projects have migrated, or are in the process of migrating, from different programming language to Rust?
-
-(Notes: should question include extend?)
+> Which open-source projects have (partially) migrated from a different programming language to Rust, and what are their main characteristics?
 
 #### Steps
 - Find projects using data mining: create or re-use dataset
@@ -22,9 +18,7 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 - Q.D: Do I already separate different projects by how they migrate (eg fully or partially, are as replacement or as addition, official or unofficial)? -> ?
 
 ### Subquestion 2
-> What types of technical debt or other factors cause these projects to be migrated?
-
-(Notes: "or other factors" feels weird, but using only technical debt might miss developer stated reason. Also "cause" implies causality)
+> Which quality attributes do maintainers aim to improve by migrating these projects?
 
 #### Steps
 - Q.A: What kinds of technical debt do we define and how can these be measured? -> literature review
@@ -32,9 +26,7 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 - Qualitative interview with project (lead) developers
 
 ### Subquestion 3
-> What strategies are employed during the migration process?
-
-(Notes: still broad. Should I include "... to reduce technical debt"?)
+> What strategies are used during the migration process?
 
 #### Steps
 - Q.A: What are often used strategies? -> literature review
@@ -43,9 +35,7 @@ This is a work-in-progress repository of Jort van Driel's work on his Master's t
 - Analyze per heuristic
 
 ### Subquestion 4
-> For projects that completed migration, to what extent is technical debt reduced?
-
-(Notes: Should I keep using positive outcome "reduced" or should it all be neutrally phrased?)
+> For projects that completed migration, how do key quality attributes change after migration?
 
 #### Steps
 - Q.A: How do I select a before and after point in time (commit) to analyze? -> ?
