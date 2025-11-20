@@ -1,0 +1,15 @@
+[package]
+name = "migration-status"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bio = "3.0.0"
+chrono = "0.4.42"
+clap = { version = "4.5.52", features = ["derive"] }
+git2 = "0.20.2"
+itertools = "0.14.0"
+ndarray = "0.17.1"
+plotters = "0.3.7"
+tokei = "12.1.2"
+walkdir = "2.5.0"

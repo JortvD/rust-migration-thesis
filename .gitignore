@@ -2,3 +2,6 @@
 .venv
 check-migrate/temp/*
 check-migrate/results/*
+target/
+migration-status/temp/*
+migration-status/results/*
