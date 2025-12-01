@@ -5,3 +5,4 @@ check-migrate/results/*
 target/
 migration-status/temp/*
 migration-status/results/*
+migration-status/.env
