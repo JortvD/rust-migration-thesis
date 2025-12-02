@@ -1,6 +1,6 @@
 use git2::{Repository, build::RepoBuilder};
 use std::time::Instant;
-use std::io::Write;
+use std::io::{self, Cursor, Write};
 
 use crate::consts::DEBUG;
 
@@ -105,21 +105,11 @@ impl BareRepositoryInfo {
             std::fs::create_dir_all(&repo_dir).expect("Should work");
         }
 
-        let mut tar_process = std::process::Command::new("tar")
-            .arg("-x")
-            .arg("-C")
-            .arg(&repo_dir)
-            .stdin(std::process::Stdio::piped())
-            .spawn().expect("Should work");
-
-        if let Some(stdin) = tar_process.stdin.as_mut() {
-            stdin.write_all(&output.stdout).expect("Should work");
-        }
-
-        let status = tar_process.wait().expect("Should work");
-        if !status.success() {
-            return Err(git2::Error::from_str("Failed to extract archive"));
-        }
+        let cursor = Cursor::new(output.stdout);
+        let mut archive = tar::Archive::new(cursor);
+        archive.unpack(&repo_dir).map_err(|e| {
+            git2::Error::from_str(&format!("Failed to unpack tar archive: {}", e))
+        })?;
 
         Ok(commit)
     }
