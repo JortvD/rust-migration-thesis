@@ -41,13 +41,13 @@ fn select_evenly_spread_commits_and_checkout_each(
     repo: &str, 
     temp_dir: &str, 
     num_commits: usize, 
-    func: &mut dyn FnMut(&git2::Commit, usize, &String)
-) -> Result<(), GatherError> {
+    writer: &mut dyn std::io::Write,
+    func: &mut dyn FnMut(&git2::Commit, usize, &String, &mut dyn std::io::Write)
+)-> Result<(), GatherError> {
     if !Path::new(temp_dir).exists() {
         fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
     }
 
-    let repo_name = format!("{}/{}", owner, repo);
     let temp_repo_dir = format!("{}/{}_{}", temp_dir, owner, repo);
 
     let repo_info =
@@ -58,7 +58,10 @@ fn select_evenly_spread_commits_and_checkout_each(
         .get_main_branch()
         .ok_or(GatherError::MainBranchNotFound)?;
 
-    if DEBUG { println!("[{repo_name}] Analyzing branch: {main_branch}"); }
+    writeln!(
+        writer,
+        "Analyzing branch: {main_branch}"
+    ).expect("Failed to write to writer");
     let start_time = Instant::now();
 
     let commits = repo_info
@@ -66,11 +69,12 @@ fn select_evenly_spread_commits_and_checkout_each(
         .map_err(|_| GatherError::RevwalkError)?;
 
     let commit_count = commits.len();
-    if DEBUG { println!(
-        "[{repo_name}] Commits in branch {main_branch}: {} (in {} ms)",
+    writeln!(
+        writer,
+        "Commits in branch {main_branch}: {} (in {} ms)",
         commit_count,
         start_time.elapsed().as_millis()
-    ); }
+    ).expect("Failed to write to writer");
 
     if commit_count == 0 {
         return Ok(());
@@ -86,7 +90,7 @@ fn select_evenly_spread_commits_and_checkout_each(
             Err(_) => continue,
         };
 
-        func(&commit, i, &temp_repo_dir);
+        func(&commit, i, &temp_repo_dir, writer);
     }
 
     Ok(())
@@ -102,6 +106,7 @@ pub fn analyze_commit(
     commit: &git2::Commit,
     index: usize,
     dir: &String,
+    writer: &mut dyn std::io::Write,
 ) -> AnalyzeResult {
     let start_time = Instant::now();
     let path = Path::new(dir);
@@ -121,14 +126,14 @@ pub fn analyze_commit(
         lang_stats.insert(*lang, (loc_pct, loc));
     }
 
-    if DEBUG { println!(
-        "[{}][{}] Commit {} at {} analyzed in {} ms",
-        repo,
+    writeln!(
+        writer,
+        "[{}] Commit {} at {} analyzed in {} ms",
         index + 1,
         &commit.id().to_string()[..8],
         chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
         start_time.elapsed().as_millis()
-    ); }
+    ).expect("Failed to write to writer");
 
     AnalyzeResult {
         lang_stats,
@@ -149,13 +154,14 @@ pub fn gather_repository_statistics(
     repo: &str,
     temp_dir: &str,
     num_commits: usize,
+    writer: &mut dyn std::io::Write,
 ) -> Result<RepositoryStats, GatherError> {
     let repo_name = format!("{}/{}", owner, repo);
     let mut symbols = Vec::new();
     let mut lang_stats = Vec::new();
 
-    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, &mut |commit, i, dir| {
-        let analyze_result = analyze_commit(&repo_name, commit, i, &dir);
+    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, writer, &mut |commit, i, dir, writer| {
+        let analyze_result = analyze_commit(&repo_name, commit, i, &dir, writer);
         symbols.push(analyze_result.symbols);
         lang_stats.push(analyze_result.lang_stats);
     })?;

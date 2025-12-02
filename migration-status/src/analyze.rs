@@ -20,6 +20,8 @@ struct SymbolMovement {
 	common_count: usize,
 	moved_count: usize,
 	moved_percentage: f64,
+	before_count: usize,
+	after_count: usize,
 }
 
 struct SymbolAnalysis {
@@ -60,6 +62,8 @@ fn analyze_symbols (
 					} else {
 						0.0
 					},
+					before_count: lang_symbols_before.len(),
+					after_count: lang_symbols_after.len(),
 				},
 			);
 		}
@@ -71,15 +75,22 @@ fn analyze_symbols (
 }
 
 fn test_rust_was_added(
+	writer: &mut dyn std::io::Write,
 	repo_stats: &RepositoryStats,
 	threshold: f64,
 ) -> bool {
 	if let Some(first_stats) = repo_stats.lang_stats.first() {
 		let initial_rust_pct = first_stats.get(&LanguageType::Rust).map_or(0.0, |s| s.0);
 		if initial_rust_pct == 0.0 {
-			for stats in &repo_stats.lang_stats {
+			for (i, stats) in repo_stats.lang_stats.iter().enumerate().skip(1) {
 				let rust_pct = stats.get(&LanguageType::Rust).map_or(0.0, |s| s.0);
 				if rust_pct > threshold {
+					writeln!(
+						writer,
+						"Detected first Rust ({:.2}%) in tree at commit {}",
+						rust_pct * 100.0,
+						i
+					).expect("Failed to write to writer");
 					return true;
 				}
 			}
@@ -89,6 +100,7 @@ fn test_rust_was_added(
 }
 
 fn test_code_moved_to_rust(
+	writer: &mut dyn std::io::Write,
 	repo_stats: &RepositoryStats,
 	min_count: usize,
 	threshold: f64,
@@ -97,10 +109,14 @@ fn test_code_moved_to_rust(
 		Some(idx) => idx,
 		None => return false,
 	};
+	if migration_idx == 0 || migration_idx >= repo_stats.symbols.len() {
+		return false;
+	}
 	let mut max_moved = 0;
 	let mut max_moved_language = None;
-	let symbols_before = &repo_stats.symbols[migration_idx];
-	for symbols_after in &repo_stats.symbols[migration_idx..] {
+	let symbols_before = &repo_stats.symbols[migration_idx-1];
+	for (i, symbols_after) in repo_stats.symbols[migration_idx..].iter().enumerate() {
+		let start_time = std::time::Instant::now();
 		let analysis = analyze_symbols(symbols_before, symbols_after);
 		for ((lang_before, lang_after), movement) in analysis.movement.iter() {
 			if *lang_after == code::SupportedLanguage::Rust && *lang_before != code::SupportedLanguage::Rust {
@@ -108,14 +124,41 @@ fn test_code_moved_to_rust(
 					max_moved = movement.moved_count;
 					max_moved_language = Some(lang_before.clone());
 				}
-				if movement.moved_percentage >= threshold && movement.moved_count >= min_count {
-					if DEBUG { println!("[{}] Detected movement of {} symbols from {:?} to Rust ({} out of {}, {:.2}%)", repo_stats.name, movement.moved_count, lang_before, movement.moved_count, movement.common_count, movement.moved_percentage * 100.0); }
+				
+				writeln!(
+					writer,
+					"[{}] {:?} to {:?}: moved {} / {} common symbols, or {:.2}% ({:?} total {}, {:?} total {})", 
+					i + migration_idx,
+					lang_before,
+					lang_after,
+					movement.moved_count,
+					movement.common_count,
+					movement.moved_percentage * 100.0,
+					lang_before,
+					movement.before_count,
+					lang_after,
+					movement.after_count,
+				).expect("Failed to write to writer");
+
+				if movement.moved_percentage >= threshold && movement.moved_count >= min_count {	
 					return true;
 				}
 			}
+			let elapsed = start_time.elapsed();
+			writeln!(
+				writer,
+				"[{}] Analysis took {:.2?}",
+				i + migration_idx,
+				elapsed
+			).expect("Failed to write to writer");
 		}
 	}
-	if DEBUG { println!("[{}] Maximum symbols moved to Rust: {} from {:?}", repo_stats.name, max_moved, max_moved_language); }
+	writeln!(
+		writer,
+		"No significant symbol movement to Rust detected. Maximum was {} symbols from {:?}",
+		max_moved,
+		max_moved_language
+	).expect("Failed to write to writer");
 	false
 }
 
@@ -126,9 +169,10 @@ pub enum MigrationStatus {
 
 pub fn check_migration_status(
 	repo_stats: &RepositoryStats,
+	writer: &mut dyn std::io::Write,
 ) -> MigrationStatus {
-	let rust_added = test_rust_was_added(repo_stats, 0.01);
-	let code_moved = test_code_moved_to_rust(repo_stats, 50, 0.8);
+	let rust_added = test_rust_was_added(writer, repo_stats, 0.01);
+	let code_moved = test_code_moved_to_rust(writer, repo_stats, 50, 0.75);
 
 	if rust_added && code_moved {
 		MigrationStatus::Migration

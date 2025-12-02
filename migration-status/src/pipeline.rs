@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic;
@@ -76,25 +77,42 @@ pub async fn run_analysis_pipeline(
 	println!("Filtered to {} repositories with at least 1.0% Rust.", repos.len());
 
 	// Take only 10 for testing
-	repos = repos.iter().take(20).cloned().collect();
+	repos = repos.iter().take(10).cloned().collect();
 	let total_repos = repos.len();
 	let i = Arc::new(AtomicUsize::new(0));
 
 	repos.par_iter().for_each(|(full_name, stars, rust_percentage)| {
 		let parts: Vec<&str> = full_name.split('/').collect();
 		if parts.len() != 2 {
-			println!("[{}/{}][{}] Skipping invalid repository name", i.fetch_add(1, atomic::Ordering::SeqCst), total_repos, full_name);
+			println!("[{}/{}][{}] Skipping invalid repository name", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name);
 			return;
 		}
 		let owner = parts[0];
 		let repo = parts[1];
 
-		let file_path = format!("{}/{}_{}.csv", output_dir, owner, repo);
+		let result_folder = format!("{}/{}_{}", output_dir, owner, repo);
 
-		 if Path::new(&file_path).exists() {
-            println!("[{}/{}][{}] Output already exists, skipping", i.fetch_add(1, atomic::Ordering::SeqCst), total_repos, full_name);
+		if !Path::new(&result_folder).exists() {
+			fs::create_dir_all(&result_folder).expect("Failed to create output directory");
+		}
+
+		let result_file = format!("{}/result.txt", result_folder);
+		let log_file = format!("{}/log.txt", result_folder);
+
+		if Path::new(&result_file).exists() {
+            println!("[{}/{}][{}] Output already exists, skipping", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name);
             return;
         }
+
+		let mut log_writer = fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(&log_file)
+			.expect("Failed to create log file");
+
+		log_writer
+			.write_all(format!("Starting analysis for repository: {} at \n", full_name).as_bytes())
+			.expect("Failed to write to log file");
 
 		println!("Analyzing: {}", full_name);
 
@@ -105,37 +123,33 @@ pub async fn run_analysis_pipeline(
 			repo,
 			&temp_dir,
 			NUM_COMMITS,
+			&mut log_writer.try_clone().expect("Failed to clone log writer")
 		);
+
+		let mut result_writer = fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(&result_file)
+			.expect("Failed to create result file");
 
 		match gather_result {
 			Ok(stats) => {
-				let status = analyze::check_migration_status(&stats);
+				let status = analyze::check_migration_status(
+					&stats, 
+					&mut log_writer.try_clone().expect("Failed to clone log writer")
+				);
                 let migration_value = matches!(status, analyze::MigrationStatus::Migration);
 
-                println!("[{}/{}][{}] Result={}", i.fetch_add(1, atomic::Ordering::SeqCst), total_repos, full_name, migration_value);
-
-                // Write one result to its own CSV
-                let mut wtr = csv::Writer::from_path(&file_path)
-                    .expect("Failed to create per-repo CSV");
-
-                wtr.write_record(&[
-                    "repo",
-                    "stars",
-                    "rust_percentage",
-                    "migration",
-                ]).unwrap();
-
-                wtr.write_record(&[
-                    full_name.clone(),
-                    stars.to_string(),
-                    format!("{:.2}", rust_percentage),
-                    migration_value.to_string(),
-                ]).unwrap();
-
-                wtr.flush().unwrap();
+				result_writer
+					.write_all(format!("{}", migration_value).as_bytes())
+					.expect("Failed to write to result file");
+				println!("[{}/{}][{}] Analysis complete. Result={}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, migration_value);
 			}
 			Err(e) => {
-				println!("[{}/{}][{}] Error: {:?}", i.fetch_add(1, atomic::Ordering::SeqCst), total_repos, full_name, e);
+				log_writer
+					.write_all(format!("Error during gathering: {:?}\n", e).as_bytes())
+					.expect("Failed to write to log file");
+				println!("[{}/{}][{}] Error during gathering: {:?}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, e);
 			}
 		}
 		clean_temp_dir(&temp_dir);

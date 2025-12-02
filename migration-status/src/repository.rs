@@ -10,9 +10,7 @@ pub struct BareRepositoryInfo {
 }
 
 impl BareRepositoryInfo {
-    pub fn clone_or_open(owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {
-        let start_time = Instant::now();
-        
+    pub fn clone_or_open(owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {       
         let repo_url = format!("https://github.com/{}/{}.git", owner, repo);
         let git_dir = dir.to_string() + ".git";
         let git_path = std::path::Path::new(&git_dir);
@@ -27,9 +25,6 @@ impl BareRepositoryInfo {
                 Err(e) => return Err(e),
             }
         };
-
-        if DEBUG { println!("[{}/{}] Cloned/opened bare repository in {} ms", owner, repo, start_time.elapsed().as_millis()); }
-
         Ok(BareRepositoryInfo {
             repository,
             dir: dir.to_string(),

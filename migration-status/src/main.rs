@@ -110,16 +110,18 @@ async fn main() {
             temp_dir,
             num_commits,
         }) => {
+            let writer = &mut std::io::stdout();
             let gather_result = gather::gather_repository_statistics(
                 owner,
                 repo,
                 temp_dir,
                 *num_commits,
+                writer,
             );
 
             match gather_result {
                 Ok(stats) => {
-                    let status = analyze::check_migration_status(&stats);
+                    let status = analyze::check_migration_status(&stats, writer);
                     let migration_value = matches!(status, analyze::MigrationStatus::Migration);
 
                     println!("Result={}", migration_value);
