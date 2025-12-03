@@ -11,7 +11,6 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
-    pub node_kind: String,
     pub name: String,
 }
 
@@ -330,7 +329,6 @@ pub fn extract_symbols_for_language(
             if let Some(name_node) = find_name_child(node) {
                 if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
                     symbols.push(Symbol {
-                        node_kind: kind.to_string().clone(),
                         name: normalize_name(text).clone(),
                     });
                 }

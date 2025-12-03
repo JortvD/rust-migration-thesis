@@ -53,7 +53,7 @@ fn collect_repos(
 	repos
 }
 
-fn clean_temp_dir(
+pub fn clean_temp_dir(
 	temp_dir: &str,
 ) {
 	let path = Path::new(temp_dir);
@@ -84,75 +84,25 @@ pub fn run_analysis_pipeline(
 	let i = Arc::new(AtomicUsize::new(0));
 
 	repos.iter().par_bridge().for_each(|(full_name, stars, rust_percentage)| {
-		let parts: Vec<&str> = full_name.split('/').collect();
-		if parts.len() != 2 {
-			println!("[{}/{}][{}] Skipping invalid repository name", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name);
-			return;
-		}
-
-		let owner = parts[0];
-		let repo = parts[1];
-		let result_folder = format!("{}/{}_{}", output_dir, owner, repo);
-
-		if !Path::new(&result_folder).exists() {
-			fs::create_dir_all(&result_folder).expect("Failed to create output directory");
-		}
-
-		let result_file = format!("{}/result.txt", result_folder);
-		let log_file = format!("{}/log.txt", result_folder);
-
-		if Path::new(&result_file).exists() {
-            println!("[{}/{}][{}] Output already exists, skipping", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name);
-            return;
-        }
-
-		let mut log_writer = fs::OpenOptions::new()
-			.append(true)
-			.create(true)
-			.open(&log_file)
-			.expect("Failed to create log file");
-
-		let time = chrono::Local::now();
-		log_writer
-			.write_all(format!("Starting analysis for repository: {} at {}\n", full_name, time).as_bytes())
-			.expect("Failed to write to log file");
-
-		let temp_dir = format!("temp/{}_{}", owner, repo);
-
-		let gather_result = gather::gather_repository_statistics(
-			owner,
-			repo,
-			&temp_dir,
-			NUM_COMMITS,
-			&mut log_writer.try_clone().expect("Failed to clone log writer")
+		let current_index = i.fetch_add(1, atomic::Ordering::SeqCst);
+		println!(
+			"[{}/{}] Analyzing repository: {} ({} stars, {:.2}% Rust)",
+			current_index + 1,
+			total_repos,
+			full_name,
+			stars,
+			rust_percentage
 		);
-		
-		match gather_result {
-			Ok(stats) => {
-				let status = analyze::check_migration_status(
-					stats, 
-					&mut log_writer.try_clone().expect("Failed to clone log writer")
-				);
 
-				let mut result_writer = fs::OpenOptions::new()
-					.append(true)
-					.create(true)
-					.open(&result_file)
-					.expect("Failed to create result file");
+		let output = format!("{}/{}", output_dir, full_name.replace("/", "_"));
+		let status = std::process::Command::new("./target/release/migration-status")
+			.args(&["single", full_name, &output])
+			.status()
+			.expect("Failed to execute cargo command");
 
-				result_writer
-					.write_all(format!("{:?},{:?}", status.0, status.1).as_bytes())
-					.expect("Failed to write to result file");
-				println!("[{}/{}][{}] Result={:?},{:?}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, status.0, status.1);
-			}
-			Err(e) => {
-				log_writer
-					.write_all(format!("Error during gathering: {:?}\n", e).as_bytes())
-					.expect("Failed to write to log file");
-				println!("[{}/{}][{}] Error during gathering: {:?}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, e);
-			}
+		if !status.success() {
+			eprintln!("Failed to analyze repository: {}", full_name);
 		}
-		clean_temp_dir(&temp_dir);
 	});
 
 }
