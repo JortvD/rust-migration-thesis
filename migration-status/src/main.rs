@@ -49,7 +49,7 @@ enum Commands {
         #[arg(
             long,
             help = "Output CSV file path",
-            default_value = "results/analysis/",
+            default_value = "results/analysis",
         )]
         output: String,
     },
