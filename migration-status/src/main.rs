@@ -1,12 +1,17 @@
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 mod gather;
 mod repository;
 mod code;
 mod analyze;
 mod pipeline;
 mod consts;
+mod math;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -35,7 +40,7 @@ enum Commands {
         #[arg(
             long,
             help = "Input CSV file path",
-            default_value = "results/repositories3.csv",
+            default_value = "results/repositories.csv",
         )]
         input: String,
 
@@ -71,6 +76,25 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
+    let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
+        let _ = ctrlc_tx.send(());
+    });
+
+    #[cfg(feature = "dhat-heap")]
+    let profiler = Some(_profiler);
+
+    tokio::spawn(async move {
+        ctrlc_rx.await.ok();
+        #[cfg(feature = "dhat-heap")]
+        drop(profiler);
+        std::process::exit(0);
+    });
+
     let args = Args::parse();
     dotenv().ok();
 
@@ -89,7 +113,7 @@ async fn main() {
             input,
             output,
         }) => {
-            pipeline::run_analysis_pipeline(input, output).await;
+            pipeline::run_analysis_pipeline(input, output);
         },
         Some(Commands::Parse {
             path,
@@ -121,10 +145,9 @@ async fn main() {
 
             match gather_result {
                 Ok(stats) => {
-                    let status = analyze::check_migration_status(&stats, writer);
-                    let migration_value = matches!(status, analyze::MigrationStatus::Migration);
+                    let status = analyze::check_migration_status(stats, writer);
 
-                    println!("Result={}", migration_value);
+                    println!("Result={:?}", status);
                 }
                 Err(e) => {
                     println!("Error: {:?}", e);

@@ -8,6 +8,7 @@ bio = "3.0.0"
 chrono = "0.4.42"
 clap = { version = "4.5.52", features = ["derive"] }
 csv = "1.4.0"
+dhat = "0.3.3"
 dotenv = "0.15.0"
 git2 = "0.20.2"
 itertools = "0.14.0"
@@ -36,3 +37,6 @@ tree-sitter-rust = "0.24.0"
 tree-sitter-swift = "0.7.1"
 tree-sitter-typescript = "0.23.2"
 walkdir = "2.5.0"
+
+[features]
+dhat-heap = []

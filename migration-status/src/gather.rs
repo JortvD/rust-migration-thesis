@@ -42,7 +42,7 @@ fn select_evenly_spread_commits_and_checkout_each(
     temp_dir: &str, 
     num_commits: usize, 
     writer: &mut dyn std::io::Write,
-    func: &mut dyn FnMut(&git2::Commit, usize, &String, &mut dyn std::io::Write)
+    func: &mut dyn FnMut(&git2::Commit, usize, &String, &mut dyn std::io::Write) -> bool,
 )-> Result<(), GatherError> {
     if !Path::new(temp_dir).exists() {
         fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
@@ -90,7 +90,11 @@ fn select_evenly_spread_commits_and_checkout_each(
             Err(_) => continue,
         };
 
-        func(&commit, i, &temp_repo_dir, writer);
+        let result = func(&commit, i, &temp_repo_dir, writer);
+
+        if !result {
+            break;
+        }
     }
 
     Ok(())
@@ -99,6 +103,7 @@ fn select_evenly_spread_commits_and_checkout_each(
 pub struct AnalyzeResult {
     pub lang_stats: HashMap<LanguageType, (f64, usize)>,
     pub symbols: HashMap<code::SupportedLanguage, Vec<Symbol>>,
+    pub can_continue: bool,
 }
 
 pub fn analyze_commit(
@@ -128,16 +133,27 @@ pub fn analyze_commit(
 
     writeln!(
         writer,
-        "[{}] Commit {} at {} analyzed in {} ms",
-        index + 1,
+        "[{}] Commit {} at {} checked in {} ms",
+        index,
         &commit.id().to_string()[..8],
         chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
         start_time.elapsed().as_millis()
     ).expect("Failed to write to writer");
 
+    let mut can_continue = true;
+
+    if index == 0 && languages.get(&LanguageType::Rust).is_some() {
+        writeln!(
+            writer,
+            "Rust code detected in the first commit; stopping further analysis."
+        ).expect("Failed to write to writer");
+        can_continue = false;
+    }
+
     AnalyzeResult {
         lang_stats,
         symbols,
+        can_continue,
     }
 }
 
@@ -164,6 +180,8 @@ pub fn gather_repository_statistics(
         let analyze_result = analyze_commit(&repo_name, commit, i, &dir, writer);
         symbols.push(analyze_result.symbols);
         lang_stats.push(analyze_result.lang_stats);
+        
+        true
     })?;
 
     Ok(RepositoryStats {

@@ -1,4 +1,5 @@
 use git2::{Repository, build::RepoBuilder};
+use std::process::{Command, Stdio};
 use std::time::Instant;
 use std::io::{self, Cursor, Write};
 
@@ -78,33 +79,41 @@ impl BareRepositoryInfo {
 
         let repo_dir = self.dir.clone();
         let git_dir = format!("{}{}", &repo_dir, ".git");
-        let output = std::process::Command::new("git")
+
+        let mut child = Command::new("git")
             .arg("-C")
             .arg(&git_dir)
             .arg("archive")
             .arg("--format=tar")
             .arg(oid.to_string())
-            .output().expect("Should work");
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(|e| git2::Error::from_str(&format!("Failed to spawn git archive: {}", e)))?;
 
-        if !output.status.success() {
-            return Err(git2::Error::from_str(&format!(
-            "Failed to create archive: {}",
-            String::from_utf8_lossy(&output.stderr)
-            )));
-        }
+        if let Some(stdout) = child.stdout.take() {
+            if std::path::Path::new(&repo_dir).exists() {
+                std::fs::remove_dir_all(&repo_dir).map_err(|e| {
+                    git2::Error::from_str(&format!("Failed to remove working dir {}: {}", repo_dir, e))
+                })?;
+            }
+            std::fs::create_dir_all(&repo_dir).map_err(|e| {
+                git2::Error::from_str(&format!("Failed to create working dir {}: {}", repo_dir, e))
+            })?;
 
-        if !std::path::Path::new(&repo_dir).exists() {
-            std::fs::create_dir_all(&repo_dir).expect("Should work");
+            let mut archive = tar::Archive::new(stdout);
+            archive.unpack(&repo_dir).map_err(|e| {
+                git2::Error::from_str(&format!("Failed to unpack tar archive: {}", e))
+            })?;
         } else {
-            std::fs::remove_dir_all(&repo_dir).expect("Should work");
-            std::fs::create_dir_all(&repo_dir).expect("Should work");
+            return Err(git2::Error::from_str("git child had no stdout"));
         }
 
-        let cursor = Cursor::new(output.stdout);
-        let mut archive = tar::Archive::new(cursor);
-        archive.unpack(&repo_dir).map_err(|e| {
-            git2::Error::from_str(&format!("Failed to unpack tar archive: {}", e))
+        let status = child.wait().map_err(|e| {
+            git2::Error::from_str(&format!("Failed waiting for git archive to finish: {}", e))
         })?;
+        if !status.success() {
+            return Err(git2::Error::from_str(&format!("git archive failed with status: {:?}", status)));
+        }
 
         Ok(commit)
     }

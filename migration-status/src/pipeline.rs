@@ -64,7 +64,7 @@ fn clean_temp_dir(
 
 const NUM_COMMITS: usize = 100;
 
-pub async fn run_analysis_pipeline(
+pub fn run_analysis_pipeline(
 	input_csv: &str,
 	output_dir: &str,
 ) {
@@ -75,21 +75,23 @@ pub async fn run_analysis_pipeline(
 	println!("Filtered to {} unique repositories.", repos.len());
 	repos = filter_min_rust(repos, 1.0);
 	println!("Filtered to {} repositories with at least 1.0% Rust.", repos.len());
+	repos.sort_by(|a, b| b.1.cmp(&a.1));
 
 	// Take only 10 for testing
-	repos = repos.iter().take(10).cloned().collect();
+	// repos = repos.iter().take(10).cloned().collect();
+
 	let total_repos = repos.len();
 	let i = Arc::new(AtomicUsize::new(0));
 
-	repos.par_iter().for_each(|(full_name, stars, rust_percentage)| {
+	repos.iter().par_bridge().for_each(|(full_name, stars, rust_percentage)| {
 		let parts: Vec<&str> = full_name.split('/').collect();
 		if parts.len() != 2 {
 			println!("[{}/{}][{}] Skipping invalid repository name", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name);
 			return;
 		}
+
 		let owner = parts[0];
 		let repo = parts[1];
-
 		let result_folder = format!("{}/{}_{}", output_dir, owner, repo);
 
 		if !Path::new(&result_folder).exists() {
@@ -110,11 +112,10 @@ pub async fn run_analysis_pipeline(
 			.open(&log_file)
 			.expect("Failed to create log file");
 
+		let time = chrono::Local::now();
 		log_writer
-			.write_all(format!("Starting analysis for repository: {} at \n", full_name).as_bytes())
+			.write_all(format!("Starting analysis for repository: {} at {}\n", full_name, time).as_bytes())
 			.expect("Failed to write to log file");
-
-		println!("Analyzing: {}", full_name);
 
 		let temp_dir = format!("temp/{}_{}", owner, repo);
 
@@ -125,25 +126,24 @@ pub async fn run_analysis_pipeline(
 			NUM_COMMITS,
 			&mut log_writer.try_clone().expect("Failed to clone log writer")
 		);
-
-		let mut result_writer = fs::OpenOptions::new()
-			.append(true)
-			.create(true)
-			.open(&result_file)
-			.expect("Failed to create result file");
-
+		
 		match gather_result {
 			Ok(stats) => {
 				let status = analyze::check_migration_status(
-					&stats, 
+					stats, 
 					&mut log_writer.try_clone().expect("Failed to clone log writer")
 				);
-                let migration_value = matches!(status, analyze::MigrationStatus::Migration);
+
+				let mut result_writer = fs::OpenOptions::new()
+					.append(true)
+					.create(true)
+					.open(&result_file)
+					.expect("Failed to create result file");
 
 				result_writer
-					.write_all(format!("{}", migration_value).as_bytes())
+					.write_all(format!("{:?},{:?}", status.0, status.1).as_bytes())
 					.expect("Failed to write to result file");
-				println!("[{}/{}][{}] Analysis complete. Result={}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, migration_value);
+				println!("[{}/{}][{}] Result={:?},{:?}", i.fetch_add(1, atomic::Ordering::SeqCst)+1, total_repos, full_name, status.0, status.1);
 			}
 			Err(e) => {
 				log_writer

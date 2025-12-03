@@ -314,7 +314,7 @@ pub fn extract_symbols_for_language(
         .set_language(&lang.ts_language())
         .expect("Failed to set Tree-sitter language");
 
-    let tree = match parser.parse(source, None) {
+    let tree = match parser.parse(&source, None) {
         Some(t) => t,
         None => return Vec::new(),
     };
@@ -330,8 +330,8 @@ pub fn extract_symbols_for_language(
             if let Some(name_node) = find_name_child(node) {
                 if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
                     symbols.push(Symbol {
-                        node_kind: kind.to_string(),
-                        name: normalize_name(text),
+                        node_kind: kind.to_string().clone(),
+                        name: normalize_name(text).clone(),
                     });
                 }
             }
@@ -358,7 +358,9 @@ pub fn extract_symbols_for_file(path: &Path) -> Option<Vec<Symbol>> {
     file.read_to_string(&mut buf).ok()?;
     let ext = path.extension()?.to_str()?;
     let lang = SupportedLanguage::from_extension(ext)?;
-    Some(extract_symbols_for_language(lang, &buf))
+    let result = extract_symbols_for_language(lang, &buf);
+    drop(buf);
+    Some(result)
 }
 
 pub fn find_symbols(root: &Path) -> Result<HashMap<SupportedLanguage, Vec<Symbol>>, Box<dyn std::error::Error>> {
