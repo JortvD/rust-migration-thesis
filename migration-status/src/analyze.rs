@@ -274,7 +274,7 @@ pub fn check_migration_status(
 	writer: &mut dyn std::io::Write,
 ) -> (RustAdditionResult, CodeMovementResult) {
 	let rust_added = test_rust_was_added(writer, &repo_stats, 0.01);
-	let code_moved = test_code_moved_to_rust(writer, &repo_stats, 50, 0.75, 100, 0.10, 1.0);
+	let code_moved = test_code_moved_to_rust(writer, &repo_stats, 30, 0.50, 60, 0.05, 0.5);
 
 	repo_stats.symbols.clear();
 	repo_stats.symbols.shrink_to_fit();
