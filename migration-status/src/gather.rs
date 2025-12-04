@@ -1,9 +1,11 @@
+use core::num;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use tokei::{Config, LanguageType, Languages};
 use chrono;
+use walkdir::WalkDir;
 use std::collections::{HashMap, HashSet};
 use crate::code::{self, Symbol};
 
@@ -18,6 +20,94 @@ pub enum GatherError {
     RevwalkError,
     CommitLookupError,
     CheckoutError,
+}
+
+
+pub const PHRASES: &[&str] = &[
+    "rust clone of",
+    "rust copy of",
+    "rust mirror of",
+    "rust replacement for",
+    "rust implementation of",
+    "rust version of",
+    "rust rewrite of",
+    "rewritten in rust",
+    "now in rust",
+    "rust alternative to",
+    "rust based implementation of",
+    "rustbased implementation of",
+    "rust reimplementation of",
+    "reimplemented in rust",
+    "rust adaptation of",
+    "converted to rust",
+    "adapted to rust",
+    "migrated to rust",
+    "transitioned to rust",
+    "rewriting to rust",
+    "migration to rust",
+];
+
+pub struct TextMatch {
+    pub phrase: String,
+    pub before: String,
+    pub after: String,
+}
+
+const MATCH_CONTEXT_CHARS: usize = 30;
+
+fn find_text_matches(path: &Path) -> Vec<TextMatch> {
+    let mut matches = Vec::new();
+    
+    for entry in WalkDir::new(path).into_iter().filter_entry(|e| {
+        if let Some(name) = e.file_name().to_str() {
+            name != ".git" && name != "target"
+        } else {
+            true
+        }
+    }) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let path: PathBuf = entry.path().into();
+
+        if path.extension().is_none() || path.extension().unwrap().to_str() != Some("md") {
+            continue;
+        }
+
+        let mut text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        text = text.replace("-", "").replace("\n", " ").replace("\r", " ").to_lowercase();
+
+        for phrase in PHRASES {
+            let mut start = 0;
+            while let Some(pos) = text[start..].find(phrase) {
+                let match_start = start + pos;
+                let match_end = match_start + phrase.len();
+
+                let before_start = match match_start.checked_sub(MATCH_CONTEXT_CHARS) {
+                    Some(v) => v,
+                    None => 0,
+                };
+                let before = &text[before_start..match_start];
+
+                let after_end = (match_end + MATCH_CONTEXT_CHARS).min(text.len());
+                let after = &text[match_end..after_end];
+
+                start = match_end;
+            }
+        }
+    }
+    
+    matches
+    
 }
 
 fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
@@ -114,6 +204,7 @@ fn select_evenly_spread_commits_and_checkout_each(
 pub struct AnalyzeResult {
     pub lang_stats: HashMap<LanguageType, (f64, usize)>,
     pub symbols: HashMap<code::SupportedLanguage, HashSet<String>>,
+    pub text_matches: Vec<TextMatch>,
     pub can_continue: bool,
 }
 
@@ -146,9 +237,24 @@ pub fn analyze_commit(
     }
     let lang_measure_duration = start_time.elapsed().as_millis();
 
+    let start_time = Instant::now();
+    let text_matches = find_text_matches(path);
+    for text_match in &text_matches {
+        writeln!(
+            writer,
+            "[{}][{}] Found text match: ...{}[{}]{}...",
+            index,
+            chrono::Utc::now().to_rfc3339(),
+            text_match.before,
+            text_match.phrase,
+            text_match.after,
+        ).expect("Failed to write to writer");
+    }
+    let text_match_duration = start_time.elapsed().as_millis();
+
     writeln!(
         writer,
-        "[{}][{}] Analyzed. Language analysis took found {} LOC in {} ms; symbol analysis found {} symbols in {} files in {} ms.",
+        "[{}][{}] Analyzed. Language analysis took found {} LOC in {} ms; symbol analysis found {} symbols in {} files in {} ms. Text match analysis found {} matches in {} ms.",
         index,
         chrono::Utc::now().to_rfc3339(),
         total_loc as usize,
@@ -156,11 +262,14 @@ pub fn analyze_commit(
         measured_symbols_count,
         file_count,
         symbol_measure_duration,
+        text_matches.len(),
+        text_match_duration,
     ).expect("Failed to write to writer");
 
     AnalyzeResult {
         lang_stats,
         symbols,
+        text_matches,
         can_continue: true,
     }
 }
@@ -171,6 +280,7 @@ pub struct RepositoryStats {
     pub name: String,
     pub lang_stats: Vec<HashMap<LanguageType, (f64, usize)>>,
     pub symbols: Vec<HashMap<code::SupportedLanguage, HashSet<String>>>,
+    pub text_matches: Vec<Vec<TextMatch>>,
 }
 
 pub fn gather_repository_statistics(
@@ -183,11 +293,13 @@ pub fn gather_repository_statistics(
     let repo_name = format!("{}/{}", owner, repo);
     let mut symbols = Vec::new();
     let mut lang_stats = Vec::new();
+    let mut text_matches = Vec::new();
 
     select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, writer, &mut |commit, i, dir, writer| {
         let analyze_result = analyze_commit(&repo_name, commit, i, &dir, writer);
         symbols.push(analyze_result.symbols);
         lang_stats.push(analyze_result.lang_stats);
+        text_matches.push(analyze_result.text_matches);
         
         true
     })?;
@@ -197,5 +309,6 @@ pub fn gather_repository_statistics(
         name: repo_name,
         lang_stats,
         symbols,
+        text_matches,
     })
 }
