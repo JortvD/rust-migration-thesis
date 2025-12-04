@@ -1,3 +1,4 @@
+use git2::{FetchOptions, RemoteCallbacks};
 use git2::{Repository, build::RepoBuilder};
 use std::process::{Command, Stdio};
 use std::time::Instant;
@@ -11,12 +12,73 @@ pub struct BareRepositoryInfo {
 }
 
 impl BareRepositoryInfo {
-    pub fn clone_or_open(owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {       
+    pub fn clone_or_open(writer: &mut dyn std::io::Write, owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {       
         let repo_url = format!("https://github.com/{}/{}.git", owner, repo);
         let git_dir = dir.to_string() + ".git";
         let git_path = std::path::Path::new(&git_dir);
+        let start_time = Instant::now();
+        let writer = std::cell::RefCell::new(writer);
         let repository = if !git_path.exists() {
-            match RepoBuilder::new().bare(true).clone(&repo_url, &git_path) {
+            let mut callbacks = RemoteCallbacks::new();
+            
+            let mut last_received_pct = 0;
+            let mut last_indexed_pct = 0;
+            callbacks.transfer_progress(|stats| {
+                let received_pct = if stats.total_objects() > 0 {
+                    (stats.received_objects() * 100 / stats.total_objects()) as u32
+                } else {
+                    100
+                };
+                if received_pct > last_received_pct {
+                    last_received_pct = received_pct;
+                    let _ = writeln!(
+                        writer.borrow_mut(),
+                        "[download] received {} MB, {}/{} objects",
+                        stats.received_bytes() / (1024 * 1024),
+                        stats.received_objects(),
+                        stats.total_objects()
+                    );
+                }
+                let indexed_pct = if stats.total_objects() > 0 {
+                    (stats.indexed_objects() * 100 / stats.total_objects()) as u32
+                } else {
+                    100
+                };
+                if indexed_pct > last_indexed_pct {
+                    last_indexed_pct = indexed_pct;
+                    let _ = writeln!(
+                        writer.borrow_mut(),
+                        "[indexing] {}/{} objects",
+                        stats.indexed_objects(),
+                        stats.total_objects()
+                    );
+                }
+                true
+            });
+
+            callbacks.sideband_progress(|data| {
+                let progress = String::from_utf8_lossy(data);
+                let _ = writeln!(writer.borrow_mut(), "[unpacking] {}", progress.trim());
+                true
+            });
+
+            callbacks.pack_progress(|stage, current, total| {
+                let _ = writeln!(
+                    writer.borrow_mut(),
+                    "[pack] stage: {:?}, {}/{} objects",
+                    stage,
+                    current,
+                    total
+                );
+            });
+
+            let mut fetch_opts = FetchOptions::new();
+            fetch_opts.remote_callbacks(callbacks);
+
+            match RepoBuilder::new()
+                .bare(true)
+                .fetch_options(fetch_opts)
+                .clone(&repo_url, &git_path) {
                 Ok(repo) => repo,
                 Err(e) => return Err(e),
             }
@@ -26,6 +88,15 @@ impl BareRepositoryInfo {
                 Err(e) => return Err(e),
             }
         };
+
+        writeln!(
+            writer.borrow_mut(),
+            "[{}] Repository at {} ready (took {} ms)",
+            owner,
+            dir,
+            start_time.elapsed().as_millis()
+        ).expect("Failed to write to writer");
+
         Ok(BareRepositoryInfo {
             repository,
             dir: dir.to_string(),

@@ -1,5 +1,5 @@
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::io::Read;
@@ -304,23 +304,21 @@ fn normalize_name(name: &str) -> String {
     name.to_lowercase().replace("_", "")
 }
 
+const MIN_SYMBOL_NAME_LENGTH: usize = 4;
+
 pub fn extract_symbols_for_language(
+    parser: &mut Parser,
     lang: SupportedLanguage,
     source: &str,
-) -> Vec<Symbol> {
-    let mut parser = Parser::new();
-    parser
-        .set_language(&lang.ts_language())
-        .expect("Failed to set Tree-sitter language");
-
+    out: &mut HashSet<String>,
+) {
     let tree = match parser.parse(&source, None) {
         Some(t) => t,
-        None => return Vec::new(),
+        None => return,
     };
 
-    let root = tree.root_node();
-    let mut symbols = Vec::new();
-    let mut stack = vec![root];
+    let mut stack = Vec::with_capacity(64);
+    stack.push(tree.root_node());
 
     while let Some(node) = stack.pop() {
         let kind = node.kind();
@@ -328,9 +326,10 @@ pub fn extract_symbols_for_language(
         if is_decl_kind(lang, kind) {
             if let Some(name_node) = find_name_child(node) {
                 if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
-                    symbols.push(Symbol {
-                        name: normalize_name(text).clone(),
-                    });
+                    let normalized = normalize_name(text);
+                    if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
+                        out.insert(normalized);
+                    }
                 }
             }
         }
@@ -346,23 +345,39 @@ pub fn extract_symbols_for_language(
             }
         }
     }
-
-    symbols
+    parser.reset();
 }
 
-pub fn extract_symbols_for_file(path: &Path) -> Option<Vec<Symbol>> {
-    let mut file = fs::File::open(path).ok()?;
-    let mut buf = String::new();
-    file.read_to_string(&mut buf).ok()?;
-    let ext = path.extension()?.to_str()?;
-    let lang = SupportedLanguage::from_extension(ext)?;
-    let result = extract_symbols_for_language(lang, &buf);
-    drop(buf);
-    Some(result)
+pub fn extract_symbols_for_file(
+    path: &Path,
+    parser_map: &mut HashMap<SupportedLanguage, Parser>,
+    symbols_map: &mut HashMap<SupportedLanguage, HashSet<String>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let src = fs::read_to_string(path)?;
+
+    let lang = match SupportedLanguage::from_path(path) {
+        Some(l) => l,
+        None => return Ok(()),
+    };
+
+    let parser = parser_map.entry(lang).or_insert_with(|| {
+        let mut p = Parser::new();
+        p.set_language(&lang.ts_language())
+            .expect("Failed to set Tree-sitter language");
+        p
+    });
+
+    let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
+
+    extract_symbols_for_language(parser, lang, &src, out_set);
+
+    Ok(())
 }
 
-pub fn find_symbols(root: &Path) -> Result<HashMap<SupportedLanguage, Vec<Symbol>>, Box<dyn std::error::Error>> {
-    let mut symbols = HashMap::new();
+pub fn find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<String>>, usize), Box<dyn std::error::Error>> {
+    let mut symbols_map: HashMap<SupportedLanguage, HashSet<String>> = HashMap::new();
+    let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
+    let mut file_count = 0;
 
     for entry in WalkDir::new(root).into_iter().filter_entry(|e| {
         if let Some(name) = e.file_name().to_str() {
@@ -382,19 +397,15 @@ pub fn find_symbols(root: &Path) -> Result<HashMap<SupportedLanguage, Vec<Symbol
 
         let path: PathBuf = entry.path().into();
 
-        if let Some(syms) = extract_symbols_for_file(&path) {
-            let supported_lang = if let Some(lang) = SupportedLanguage::from_path(&path) {
-                lang
-            } else {
-                continue;
-            };
-
-            symbols
-                .entry(supported_lang)
-                .or_insert_with(Vec::new)
-                .extend(syms);
+        if path.extension().is_none() {
+            continue;
         }
+
+        if let Err(_) = extract_symbols_for_file(&path, &mut parser_map, &mut symbols_map) {
+            continue;
+        }
+        file_count += 1;
     }
 
-    Ok(symbols)
+    Ok((symbols_map, file_count))
 }

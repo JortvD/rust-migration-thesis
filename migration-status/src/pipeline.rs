@@ -94,9 +94,8 @@ pub fn run_analysis_pipeline(
 			rust_percentage
 		);
 
-		let output = format!("{}/{}", output_dir, full_name.replace("/", "_"));
 		let status = std::process::Command::new("./target/release/migration-status")
-			.args(&["single", full_name, &output])
+			.args(&["single", full_name, &output_dir])
 			.status()
 			.expect("Failed to execute cargo command");
 

@@ -16,14 +16,6 @@ fn find_migration_start_index(
 	None
 }
 
-const MIN_SYMBOL_NAME_LENGTH: usize = 4;
-
-fn symbol_vec_to_names_set(
-	symbols: &Vec<code::Symbol>,
-) -> HashSet<&String> {
-	symbols.iter().map(|s| &s.name).filter(|name| !name.is_empty() && name.len() >= MIN_SYMBOL_NAME_LENGTH).collect()
-}
-
 struct SymbolMovement {
 	common_count: usize,
 	moved_count: usize,
@@ -37,28 +29,25 @@ struct SymbolAnalysis {
 }
 
 fn analyze_symbols (
-	symbols_before: &HashMap<code::SupportedLanguage, Vec<code::Symbol>>,
-	symbols_after: &HashMap<code::SupportedLanguage, Vec<code::Symbol>>,
+	symbols_before: &HashMap<code::SupportedLanguage, HashSet<String>>,
+	symbols_after: &HashMap<code::SupportedLanguage, HashSet<String>>,
 ) -> SymbolAnalysis {
 	let mut movement = HashMap::new();
 	for lang_before in symbols_before.keys() {
 		for lang_after in symbols_after.keys() {
-			let lang_symbols_before = &symbols_before[lang_before];
-			let lang_symbols_after = &symbols_after[lang_after];
-
-			let names_before: HashSet<&String> = symbol_vec_to_names_set(lang_symbols_before);
-			let names_after: HashSet<&String> = symbol_vec_to_names_set(lang_symbols_after);
+			let names_before = &symbols_before[lang_before];
+			let names_after = &symbols_after[lang_after];
 
 			let intersection = names_before.intersection(&names_after).collect::<HashSet<_>>();
 
 			let common_count = intersection.len();
 
-			let other_symbols_after = symbols_after.iter()
+			let other_names_after = symbols_after.iter()
 				.filter(|s| *s.0 != *lang_after)
-				.flat_map(|s| symbol_vec_to_names_set(s.1).into_iter())
+				.flat_map(|s| s.1.iter())
 				.collect::<HashSet<_>>();
 
-			let moved_count = intersection.difference(&other_symbols_after.iter().collect::<HashSet<_>>()).count();
+			let moved_count = intersection.difference(&other_names_after).count();
 
 			movement.insert(
 				(*lang_before, *lang_after),
@@ -138,7 +127,7 @@ fn test_rust_was_added(
 
 #[derive(Debug)]
 pub enum CodeMovementResult {
-	MovementInProgress(code::SupportedLanguage, usize, f64),
+	MovementInProgress(code::SupportedLanguage, usize, f64, usize),
 	SignificantMovement(code::SupportedLanguage, usize, f64),
 	SignificantCommon(code::SupportedLanguage, usize, f64),
 	NoSignificantMovement,
@@ -240,7 +229,7 @@ fn test_code_moved_to_rust(
 					)
 					.expect("Failed to write to writer");
 
-					return CodeMovementResult::MovementInProgress(lang.clone(), max_moved, slope);
+					return CodeMovementResult::MovementInProgress(lang.clone(), max_moved, slope, moved_counts.len());
 				} else {
 					writeln!(
 						writer,

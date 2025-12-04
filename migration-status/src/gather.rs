@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use tokei::{Config, LanguageType, Languages};
 use chrono;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::code::{self, Symbol};
 
 use crate::consts::DEBUG;
@@ -51,7 +51,7 @@ fn select_evenly_spread_commits_and_checkout_each(
     let temp_repo_dir = format!("{}/{}_{}", temp_dir, owner, repo);
 
     let repo_info =
-        repository::BareRepositoryInfo::clone_or_open(owner, repo, &temp_repo_dir)
+        repository::BareRepositoryInfo::clone_or_open(writer, owner, repo, &temp_repo_dir)
             .map_err(|_| GatherError::RepositoryCloneError)?;
 
     let main_branch = repo_info
@@ -84,11 +84,22 @@ fn select_evenly_spread_commits_and_checkout_each(
 
     for (i, commit_index) in indices.into_iter().enumerate() {
         let commit_id = commits[commit_index];
+        let start_time = Instant::now();
 
         let commit = match repo_info.checkout_commit(commit_id, &main_branch) {
             Ok(c) => c,
             Err(_) => continue,
         };
+
+        writeln!(
+            writer,
+            "[{}][{}] Checked out commit {} at {} (took {} ms)",
+            i,
+            chrono::Utc::now().to_rfc3339(),
+            &commit.id().to_string()[..8],
+            chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
+            start_time.elapsed().as_millis(),
+        ).expect("Failed to write to writer");
 
         let result = func(&commit, i, &temp_repo_dir, writer);
 
@@ -102,7 +113,7 @@ fn select_evenly_spread_commits_and_checkout_each(
 
 pub struct AnalyzeResult {
     pub lang_stats: HashMap<LanguageType, (f64, usize)>,
-    pub symbols: HashMap<code::SupportedLanguage, Vec<Symbol>>,
+    pub symbols: HashMap<code::SupportedLanguage, HashSet<String>>,
     pub can_continue: bool,
 }
 
@@ -113,14 +124,17 @@ pub fn analyze_commit(
     dir: &String,
     writer: &mut dyn std::io::Write,
 ) -> AnalyzeResult {
-    let start_time = Instant::now();
     let path = Path::new(dir);
     let paths = [dir.as_str()];
     let excluded: [&str; 0] = [];
     let config = Config::default();
 
-    let symbols = code::find_symbols(path).unwrap_or_default();
+    let start_time = Instant::now();
+    let (symbols, file_count) = code::find_symbols(path).unwrap_or_default();
+    let measured_symbols_count: usize = symbols.values().map(|s| s.len()).sum();
+    let symbol_measure_duration = start_time.elapsed().as_millis();
 
+    let start_time = Instant::now();
     let mut languages = Languages::new();
     languages.get_statistics(&paths, &excluded, &config);
     let mut lang_stats = HashMap::new();
@@ -130,30 +144,24 @@ pub fn analyze_commit(
         let loc_pct = loc as f64 / total_loc.max(1.0);
         lang_stats.insert(*lang, (loc_pct, loc));
     }
+    let lang_measure_duration = start_time.elapsed().as_millis();
 
     writeln!(
         writer,
-        "[{}] Commit {} at {} checked in {} ms",
+        "[{}][{}] Analyzed. Language analysis took found {} LOC in {} ms; symbol analysis found {} symbols in {} files in {} ms.",
         index,
-        &commit.id().to_string()[..8],
-        chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
-        start_time.elapsed().as_millis()
+        chrono::Utc::now().to_rfc3339(),
+        total_loc as usize,
+        lang_measure_duration,
+        measured_symbols_count,
+        file_count,
+        symbol_measure_duration,
     ).expect("Failed to write to writer");
-
-    let mut can_continue = true;
-
-    if index == 0 && languages.get(&LanguageType::Rust).is_some() {
-        writeln!(
-            writer,
-            "Rust code detected in the first commit; stopping further analysis."
-        ).expect("Failed to write to writer");
-        can_continue = false;
-    }
 
     AnalyzeResult {
         lang_stats,
         symbols,
-        can_continue,
+        can_continue: true,
     }
 }
 
@@ -162,7 +170,7 @@ pub struct RepositoryStats {
     pub length: usize,
     pub name: String,
     pub lang_stats: Vec<HashMap<LanguageType, (f64, usize)>>,
-    pub symbols: Vec<HashMap<code::SupportedLanguage, Vec<Symbol>>>,
+    pub symbols: Vec<HashMap<code::SupportedLanguage, HashSet<String>>>,
 }
 
 pub fn gather_repository_statistics(

@@ -56,9 +56,6 @@ enum Commands {
     Single {
         name: String,
         output: String,
-    },
-    Parse {
-        path: String,
     }
 }
 
@@ -103,19 +100,6 @@ async fn main() {
         }) => {
             pipeline::run_analysis_pipeline(input, output);
         },
-        Some(Commands::Parse {
-            path,
-        }) => {
-            let path = std::path::Path::new(path);
-            if let Some(symbols) = code::extract_symbols_for_file(path) {
-                println!("Found {} symbols:", symbols.len());
-                for symbol in symbols {
-                    println!("{:?}", symbol);
-                }
-            } else {
-                println!("No symbols found.");
-            }
-        }
         Some(Commands::Single {
             name,
             output,
