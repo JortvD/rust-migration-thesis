@@ -30,7 +30,6 @@ pub enum SupportedLanguage { // >500 stars (111k total)
     Javascript, // 13.9k
     ObjectiveC, // 1.8k
     OCaml, // 83
-    Perl, // 178
     Lua, // 712
     Nix, // 109
     PHP, // 2.9k
@@ -83,7 +82,6 @@ impl SupportedLanguage {
             "scala" | "sc" => Some(SupportedLanguage::Scala),
             "objective-c" | "m" | "mm" => Some(SupportedLanguage::ObjectiveC),
             "clj" | "cljs" | "cljc" => Some(SupportedLanguage::Clojure),
-            "pl" | "pm" => Some(SupportedLanguage::Perl),
             _ => None,
         }
     }
@@ -113,7 +111,6 @@ impl SupportedLanguage {
             SupportedLanguage::Scala => tree_sitter_scala::LANGUAGE.into(),
             SupportedLanguage::ObjectiveC => tree_sitter_objc::LANGUAGE.into(),
             SupportedLanguage::Clojure => tree_sitter_clojure::LANGUAGE.into(),
-            SupportedLanguage::Perl => tree_sitter_perl::LANGUAGE.into(),
         }
     }
     
@@ -142,7 +139,6 @@ impl SupportedLanguage {
             SupportedLanguage::Scala => "Scala",
             SupportedLanguage::ObjectiveC => "Objective-C",
             SupportedLanguage::Clojure => "Clojure",
-            SupportedLanguage::Perl => "Perl",
         }
     }
 }
@@ -421,15 +417,6 @@ fn decl_kind_candidates(lang: SupportedLanguage) -> &'static [(&'static str, Kin
             ("defrecord", KindGroup::Type),
             ("defprotocol", KindGroup::Type),
             ("ns", KindGroup::Other),
-        ],
-        SupportedLanguage::Perl => &[
-            ("subroutine_definition", KindGroup::Function),
-            ("package_definition", KindGroup::Type),
-            ("package_declaration", KindGroup::Type),
-            ("variable_declaration", KindGroup::Variable),
-            ("variable_assignment", KindGroup::Variable),
-            ("package_declaration", KindGroup::Other),
-            ("use_statement", KindGroup::Other),
         ],
     }
 }
