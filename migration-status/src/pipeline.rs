@@ -326,15 +326,15 @@ pub async fn run_symbols_pipeline(
 			Ok(p) => p,
 			Err(e) => {
 				eprintln!("Error fetching repositories: {}", e);
-				println!("Sleeping for 30 minutes before retrying...");
-				tokio::time::sleep(std::time::Duration::from_secs(60 * 30)).await;
+				println!("Sleeping for 1 minute before retrying...");
+				tokio::time::sleep(std::time::Duration::from_secs(60)).await;
 				continue;
 			}
 		};
 
 		let highest_stars = page.items.iter()
 			.filter_map(|repo| repo.stargazers_count)
-			.min()
+			.max()
 			.unwrap_or(0);
 
 		println!("Processing {} repositories from page {}...", page.items.len(), page_num);
