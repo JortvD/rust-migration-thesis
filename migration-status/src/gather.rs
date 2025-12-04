@@ -7,7 +7,7 @@ use tokei::{Config, LanguageType, Languages};
 use chrono;
 use walkdir::WalkDir;
 use std::collections::{HashMap, HashSet};
-use crate::code::{self, Symbol};
+use crate::code::{self, SupportedLanguage, Symbol};
 
 use crate::consts::DEBUG;
 use crate::repository;
@@ -24,27 +24,23 @@ pub enum GatherError {
 
 
 pub const PHRASES: &[&str] = &[
-    "rust clone of",
-    "rust copy of",
-    "rust mirror of",
-    "rust replacement for",
-    "rust implementation of",
-    "rust version of",
-    "rust rewrite of",
-    "rewritten in rust",
-    "now in rust",
-    "rust alternative to",
-    "rust based implementation of",
-    "rustbased implementation of",
-    "rust reimplementation of",
-    "reimplemented in rust",
-    "rust adaptation of",
-    "converted to rust",
-    "adapted to rust",
-    "migrated to rust",
-    "transitioned to rust",
-    "rewriting to rust",
-    "migration to rust",
+    "clone of",
+    "copy of",
+    "mirror of",
+    "replacement for",
+    "rewrite of",
+    "rewritten in",
+    "alternative to",
+    "implementation of",
+    "reimplementation of",
+    "reimplemented in",
+    "adaptation of",
+    "converted to",
+    "adapted to",
+    "migrated to",
+    "transitioned to",
+    "rewriting to",
+    "migration to",
 ];
 
 pub struct TextMatch {
@@ -101,6 +97,12 @@ fn find_text_matches(path: &Path) -> Vec<TextMatch> {
                 let after_end = (match_end + MATCH_CONTEXT_CHARS).min(text.len());
                 let after = &text[match_end..after_end];
 
+                matches.push(TextMatch {
+                    phrase: phrase.to_string(),
+                    before: before.to_string(),
+                    after: after.to_string(),
+                });
+
                 start = match_end;
             }
         }
@@ -108,6 +110,37 @@ fn find_text_matches(path: &Path) -> Vec<TextMatch> {
     
     matches
     
+}
+
+pub fn get_repo_symbols(name: &str) -> Result<HashMap<SupportedLanguage, HashSet<String>>, ()> {
+    let parts: Vec<&str> = name.split('/').collect();
+    if parts.len() != 2 {
+        println!("[{}] Skipping invalid repository name", name);
+        return Err(());
+    }
+    let owner = parts[0];
+    let repo = parts[1];
+
+    let temp = format!("temp/{}_{}", owner, repo);
+
+    if !Path::new(&temp).exists() {
+        fs::create_dir_all(&temp).map_err(|_| ())?;
+    }
+
+    let temp_repo_dir = format!("{}/{}_{}", temp, owner, repo);
+    let writer = &mut std::io::stdout();
+
+    let repo_info = repository::BareRepositoryInfo::clone_or_open(writer, owner, repo, &temp_repo_dir).map_err(|_| ())?;
+    let main_branch = repo_info.get_main_branch().ok_or(())?;
+    let commit = repo_info.get_latest_commit(&main_branch).map_err(|_| ())?;
+    let commit = match repo_info.checkout_commit(commit, &main_branch) {
+        Ok(c) => c,
+        Err(_) => return Err(()),
+    };
+    let path = Path::new(&temp_repo_dir);
+    let (symbols, file_count) = code::find_symbols(path).unwrap_or_default();
+
+    Ok(symbols)
 }
 
 fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {

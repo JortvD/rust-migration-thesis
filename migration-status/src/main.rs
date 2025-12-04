@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path::Path};
+use std::{collections::HashSet, fs, io::Write, path::Path};
 
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
@@ -56,6 +56,18 @@ enum Commands {
     Single {
         name: String,
         output: String,
+    },
+    Compare {
+        from: String,
+        to: String,
+    },
+    Symbols {
+        #[arg(
+            long,
+            help = "Minimum number of stars",
+            default_value = "500",
+        )]
+        min_stars: u32,
     }
 }
 
@@ -100,6 +112,45 @@ async fn main() {
         }) => {
             pipeline::run_analysis_pipeline(input, output);
         },
+        Some(Commands::Compare {
+            from,
+            to,
+        }) => {
+            let from_symbols = gather::get_repo_symbols(from).expect("Failed to get symbols for 'from' repository");
+            let to_symbols = gather::get_repo_symbols(to).expect("Failed to get symbols for 'to' repository");
+
+            for from_lang in from_symbols.keys() {
+                for to_lang in to_symbols.keys() {
+                    let from_set = from_symbols.get(from_lang).unwrap();
+                    let to_set = to_symbols.get(to_lang).unwrap();
+
+                    let common: HashSet<_> = from_set.intersection(to_set).collect();
+                    let common_count = common.len();
+                    let from_pct = if !from_set.is_empty() {
+                        common_count as f64 / from_set.len() as f64 * 100.0
+                    } else {
+                        0.0
+                    };
+                    let to_pct = if !to_set.is_empty() {
+                        common_count as f64 / to_set.len() as f64 * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    println!("Common symbols between {}'s {:?} and {}'s {:?}: {} (from {} or {:.2}% to {} or {:.2}%)", 
+                        from,
+                        from_lang,
+                        to,
+                        to_lang,
+                        common_count,
+                        from_set.len(),
+                        from_pct,
+                        to_set.len(),
+                        to_pct
+                    );
+                }
+            }
+        }
         Some(Commands::Single {
             name,
             output,
@@ -172,6 +223,11 @@ async fn main() {
                 }
             }
             pipeline::clean_temp_dir(&temp_dir);
+        }
+        Some(Commands::Symbols {
+            min_stars
+        }) => {
+            pipeline::run_symbols_pipeline(&min_stars).await;
         }
     }
 }

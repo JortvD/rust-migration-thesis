@@ -4,6 +4,7 @@ check-migrate/temp/*
 check-migrate/results/*
 target/
 migration-status/temp/*
+migration-status/temp_symbols/*
 migration-status/results/*
 migration-status/tests/*
 migration-status/.env

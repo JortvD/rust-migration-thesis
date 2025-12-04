@@ -6,8 +6,10 @@ use std::sync::Arc;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use octocrab::models::Repository;
 use rayon::prelude::*;
 
+use crate::code;
 use crate::gather;
 use crate::analyze;
 
@@ -203,5 +205,152 @@ pub async fn run_collection_pipeline(
 
 		previous_repositories = current_repositories.clone();
 		current_repositories.clear();
+	}
+}
+
+#[derive(Debug)]
+enum SymbolsError {
+	ClearTempDirError,
+	ResultsDirError,
+	CloneError,
+	SymbolsGatherError,
+	ResultsWriteError,
+}
+
+fn run_symbols_for_repo(
+	repo: &Repository
+) -> Result<(), SymbolsError> {
+	let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
+	let temp_folder = format!("temp_symbols/{}", repo_name);
+	let results_folder = format!("results/symbols/{}", repo_name);
+	let symbols_file = format!("{}/symbols.csv", results_folder);
+
+	if Path::new(&symbols_file).exists() {
+		return Ok(());
+	}
+
+	if Path::new(&temp_folder).exists() {
+		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
+	}
+
+	let branch = if repo.default_branch.is_some() {
+		repo.default_branch.as_ref().unwrap()
+	} else {
+		"main"
+	};
+
+	let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
+
+	let start_clone_time = std::time::Instant::now();
+	let status = std::process::Command::new("git")
+		.args(&["clone", &git_url, "--depth", "1", "--branch", branch, &temp_folder])
+		.stdout(std::process::Stdio::null())
+		.stderr(std::process::Stdio::null())
+		.status()
+		.map_err(|_| SymbolsError::CloneError)?;
+
+	if !status.success() {
+		eprintln!("[{}] Failed to clone repository with code {}", repo_name, status.code().unwrap_or(-1));
+		return Err(SymbolsError::CloneError);
+	}
+	let clone_duration = start_clone_time.elapsed();
+
+	let start_gather_time = std::time::Instant::now();
+	let temp_folder_path = Path::new(&temp_folder);
+	let result = code::extensive_find_symbols(temp_folder_path).map_err(|_| SymbolsError::SymbolsGatherError)?;
+	let gather_duration = start_gather_time.elapsed();
+
+	let symbols_result = result.0;
+	if !Path::new(&results_folder).exists() {
+		fs::create_dir_all(&results_folder).map_err(|_| SymbolsError::ResultsDirError)?;
+	}
+
+	let start_write_time = std::time::Instant::now();
+	let total_symbols: usize = symbols_result.values().map(|symbols| symbols.len()).sum();
+	let mut result_str = String::with_capacity(total_symbols * 100); // Estimate average symbol length + other fields
+	result_str.push_str("Language,Name,Kind,Group,NameKind\n");
+
+	for (lang, symbols) in symbols_result {
+		for symbol in symbols {
+			result_str.push_str(&format!("{},{},{},{},{}\n", lang.to_string(), symbol.name, symbol.kind, symbol.group.to_string(), symbol.name_kind));
+		}
+	}
+
+	let mut results_writer = fs::OpenOptions::new()
+		.append(true)
+		.create(true)
+		.open(&symbols_file)
+		.map_err(|_| SymbolsError::ResultsWriteError)?;
+	results_writer
+		.write_all(result_str.as_bytes())
+		.map_err(|_| SymbolsError::ResultsWriteError)?;
+	let write_duration = start_write_time.elapsed();
+	println!(
+		"[{}][{}/{}] Cloned {} in {:.2?}, gathered symbols in {:.2?}, wrote results in {:.2?} (total symbols: {} in {} files)",
+		repo.stargazers_count.unwrap_or(0),
+		repo.owner.as_ref().unwrap().login,
+		repo.name,
+		branch,
+		clone_duration,
+		gather_duration,
+		write_duration,
+		total_symbols,
+		result.1
+	);
+
+	Ok(())
+}
+
+pub async fn run_symbols_pipeline(
+	min_stars: &u32,
+) {
+	let instance = octocrab::Octocrab::builder()
+		.build().unwrap();
+
+	let mut stars = min_stars.clone();
+	let mut page_num = 1u32;
+	loop {
+		println!("Fetching repositories with up to {} stars...", stars);
+		let page: octocrab::Page<octocrab::models::Repository> = match instance
+			.search()
+			.repositories(&format!("stars:>={}", stars))
+			.sort("stars")
+			.order("asc")
+			.per_page(100)
+			.page(page_num)
+			.send()
+			.await 
+		{
+			Ok(p) => p,
+			Err(e) => {
+				eprintln!("Error fetching repositories: {}", e);
+				println!("Sleeping for 30 minutes before retrying...");
+				tokio::time::sleep(std::time::Duration::from_secs(60 * 30)).await;
+				continue;
+			}
+		};
+
+		let highest_stars = page.items.iter()
+			.filter_map(|repo| repo.stargazers_count)
+			.min()
+			.unwrap_or(0);
+
+		println!("Processing {} repositories from page {}...", page.items.len(), page_num);
+
+		page.items.iter().par_bridge().for_each(|repo| {
+			let result = run_symbols_for_repo(repo);
+			let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
+			if let Err(e) = result {
+				eprintln!("[{}] Error processing repository: {:?}", repo_name, e);
+			}
+			clean_temp_dir(format!("temp_symbols/{}", repo_name).as_str());
+		});
+
+		if stars == highest_stars {
+			page_num += 1;
+		} else {
+			page_num = 1;
+		}
+		stars = highest_stars;
 	}
 }

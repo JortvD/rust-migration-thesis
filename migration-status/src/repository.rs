@@ -124,6 +124,14 @@ impl BareRepositoryInfo {
         }
     }
 
+    pub fn get_latest_commit(&self, branch_ref: &str) -> Result<git2::Oid, git2::Error> {
+        let reference = self.repository.find_reference(&branch_ref)?;
+        let oid = reference
+            .target()
+            .ok_or_else(|| git2::Error::from_str("Invalid reference target"))?;
+        Ok(oid)
+    }
+
     pub fn get_commits(&self, branch_ref: &str) -> Result<Vec<git2::Oid>, git2::Error> {
         let reference = self.repository.find_reference(&branch_ref)?;
         let mut oid = reference
