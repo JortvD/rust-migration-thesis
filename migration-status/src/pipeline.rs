@@ -239,7 +239,9 @@ fn run_symbols_for_repo(
 		"main"
 	};
 
-	let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
+	//let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
+	let git_url = format!("https://github.com/{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
+
 
 	let start_clone_time = std::time::Instant::now();
 	let status = std::process::Command::new("git")
