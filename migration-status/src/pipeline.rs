@@ -355,8 +355,25 @@ pub async fn run_symbols_pipeline(
 				}
 			};
 			let stars_count = repo.stargazers_count.unwrap_or(0);
+			let forks_count = repo.forks_count.unwrap_or(0);
+			let main_branch = if repo.default_branch.is_some() {
+				repo.default_branch.as_ref().unwrap()
+			} else {
+				"main"
+			};
+			let is_fork = repo.fork.unwrap_or(false);
+			let created_at = repo.created_at.unwrap_or(chrono::Utc::now());
+			let updated_at = repo.updated_at.unwrap_or(chrono::Utc::now());
+			let size = repo.size.unwrap_or(0);
+			let language = repo.language.as_ref()
+				.and_then(|value| value.as_str())
+				.unwrap_or("Unknown");
+			let license = match &repo.license {
+				Some(lic) => lic.spdx_id.clone(),
+				None => "None".to_string(),
+			};
 			repositories_writer
-				.write_all(format!("{},{}\n", full_name, stars_count).as_bytes())
+				.write_all(format!("{},{},{},{},{},{},{},{},{},{}\n", full_name, stars_count, forks_count, main_branch, created_at, updated_at, is_fork, size, language,license).as_bytes())
 				.expect("Failed to write to repositories file");
 		}
 
@@ -376,6 +393,6 @@ pub async fn run_symbols_pipeline(
 		}
 		stars = highest_stars;
 
-		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+		tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 	}
 }
