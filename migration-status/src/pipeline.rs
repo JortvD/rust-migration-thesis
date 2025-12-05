@@ -309,10 +309,17 @@ pub async fn run_symbols_pipeline(
 	let instance = octocrab::Octocrab::builder()
 		.build().unwrap();
 
+	let repositories_file = Path::new("results/all_repositories.csv");
+	let mut repositories_writer = fs::OpenOptions::new()
+		.append(true)
+		.create(true)
+		.open(&repositories_file)
+		.expect("Failed to create result file");
+	
+
 	let mut stars = min_stars.clone();
 	let mut page_num = 1u32;
 	loop {
-		println!("Fetching repositories with up to {} stars...", stars);
 		let page: octocrab::Page<octocrab::models::Repository> = match instance
 			.search()
 			.repositories(&format!("stars:>={}", stars))
@@ -337,16 +344,30 @@ pub async fn run_symbols_pipeline(
 			.max()
 			.unwrap_or(0);
 
-		println!("Processing {} repositories from page {}...", page.items.len(), page_num);
+		println!("Processing {} repositories with {} stars from page {}...", page.items.len(), stars, page_num);
 
-		page.items.iter().par_bridge().for_each(|repo| {
-			let result = run_symbols_for_repo(repo);
-			let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
-			if let Err(e) = result {
-				eprintln!("[{}] Error processing repository: {:?}", repo_name, e);
-			}
-			clean_temp_dir(format!("temp_symbols/{}", repo_name).as_str());
-		});
+		for repo in &page.items {
+			let full_name = match repo.full_name.as_ref() {
+				Some(name) => name,
+				None => {
+					eprintln!("Repository without full name, skipping.");
+					continue;
+				}
+			};
+			let stars_count = repo.stargazers_count.unwrap_or(0);
+			repositories_writer
+				.write_all(format!("{},{}\n", full_name, stars_count).as_bytes())
+				.expect("Failed to write to repositories file");
+		}
+
+		// page.items.iter().par_bridge().for_each(|repo| {
+		// 	let result = run_symbols_for_repo(repo);
+		// 	let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
+		// 	if let Err(e) = result {
+		// 		eprintln!("[{}] Error processing repository: {:?}", repo_name, e);
+		// 	}
+		// 	clean_temp_dir(format!("temp_symbols/{}", repo_name).as_str());
+		// });
 
 		if stars == highest_stars {
 			page_num += 1;
@@ -354,5 +375,7 @@ pub async fn run_symbols_pipeline(
 			page_num = 1;
 		}
 		stars = highest_stars;
+
+		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
 }

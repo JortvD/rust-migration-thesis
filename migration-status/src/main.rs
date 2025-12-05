@@ -65,7 +65,7 @@ enum Commands {
         #[arg(
             long,
             help = "Minimum number of stars",
-            default_value = "500",
+            default_value = "250",
         )]
         min_stars: u32,
     }
