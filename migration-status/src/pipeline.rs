@@ -346,6 +346,11 @@ pub async fn run_symbols_pipeline(
 
 		println!("Processing {} repositories with {} stars from page {}...", page.items.len(), stars, page_num);
 
+		if page.items.len() == 0 {
+			println!("Done!");
+			return;
+		}
+
 		for repo in &page.items {
 			let full_name = match repo.full_name.as_ref() {
 				Some(name) => name,
