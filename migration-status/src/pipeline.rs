@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::hash::Hash;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
@@ -10,6 +12,8 @@ use octocrab::models::Repository;
 use rayon::prelude::*;
 
 use crate::code;
+use crate::code::SupportedLanguage;
+use crate::code::SymbolData;
 use crate::gather;
 use crate::analyze;
 
@@ -209,7 +213,7 @@ pub async fn run_collection_pipeline(
 }
 
 #[derive(Debug)]
-enum SymbolsError {
+pub enum SymbolsError {
 	ClearTempDirError,
 	ResultsDirError,
 	CloneError,
@@ -217,15 +221,15 @@ enum SymbolsError {
 	ResultsWriteError,
 }
 
-fn run_symbols_for_repo(
-	repo: &Repository
+pub fn run_symbols_for_repo(
+	repo: &Repo
 ) -> Result<(), SymbolsError> {
-	let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
+	let repo_name = repo.name.replace("/", "_");
 	let temp_folder = format!("temp_symbols/{}", repo_name);
 	let results_folder = format!("results/symbols/{}", repo_name);
-	let symbols_file = format!("{}/symbols.csv", results_folder);
+	let metadata_path = format!("{}/metadata.txt", results_folder);
 
-	if Path::new(&symbols_file).exists() {
+	if Path::new(&metadata_path).exists() {
 		return Ok(());
 	}
 
@@ -233,15 +237,10 @@ fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
-	let branch = if repo.default_branch.is_some() {
-		repo.default_branch.as_ref().unwrap()
-	} else {
-		"main"
-	};
+	let branch = &repo.main_branch;
 
 	//let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
-	let git_url = format!("https://github.com/{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
-
+	let git_url = format!("https://github.com/{}.git", repo.name);
 
 	let start_clone_time = std::time::Instant::now();
 	let status = std::process::Command::new("git")
@@ -255,55 +254,151 @@ fn run_symbols_for_repo(
 		eprintln!("[{}] Failed to clone repository with code {}", repo_name, status.code().unwrap_or(-1));
 		return Err(SymbolsError::CloneError);
 	}
+
+	let commit_id = {
+		let output = std::process::Command::new("git")
+			.args(&["rev-parse", "HEAD"])
+			.current_dir(&temp_folder)
+			.output()
+			.map_err(|_| SymbolsError::ResultsWriteError)?;
+
+		if !output.status.success() {
+			"unknown".to_string()
+		} else {
+			String::from_utf8_lossy(&output.stdout).trim().to_string()
+		}
+	};
 	let clone_duration = start_clone_time.elapsed();
 
 	let start_gather_time = std::time::Instant::now();
 	let temp_folder_path = Path::new(&temp_folder);
-	let result = code::extensive_find_symbols(temp_folder_path).map_err(|_| SymbolsError::SymbolsGatherError)?;
-	let gather_duration = start_gather_time.elapsed();
 
-	let symbols_result = result.0;
 	if !Path::new(&results_folder).exists() {
 		fs::create_dir_all(&results_folder).map_err(|_| SymbolsError::ResultsDirError)?;
 	}
 
-	let start_write_time = std::time::Instant::now();
-	let total_symbols: usize = symbols_result.values().map(|symbols| symbols.len()).sum();
-	let mut result_str = String::with_capacity(total_symbols * 100); // Estimate average symbol length + other fields
-	result_str.push_str("Language,Name,Kind,Group,NameKind\n");
-
-	for (lang, symbols) in symbols_result {
-		for symbol in symbols {
-			result_str.push_str(&format!("{},{},{},{},{}\n", lang.to_string(), symbol.name, symbol.kind, symbol.group.to_string(), symbol.name_kind));
+	let total_symbols = code::extensive_find_symbols(temp_folder_path, 5_000_000, &|index: usize, symbols_result: HashMap<SupportedLanguage, HashSet<SymbolData>>| -> Result<(), SymbolsError> {
+		let total_symbols: usize = symbols_result.values().map(|symbols| symbols.len()).sum();
+		if total_symbols == 0 {
+			return Ok(());
 		}
-	}
+		let mut result_str = String::with_capacity(total_symbols * 100); // Estimate average symbol length + other fields
+		result_str.push_str("Language,File,Start,Name,ParentKind,GrandparentKind,GreatGrandparentKind\n");
 
-	let mut results_writer = fs::OpenOptions::new()
-		.append(true)
-		.create(true)
-		.open(&symbols_file)
+		for (lang, symbols) in &symbols_result {
+			for symbol in symbols {
+				result_str.push_str(&format!("{},{},{},{},{},{},{}\n", lang.to_string(), symbol.path, symbol.start, symbol.name, symbol.parent_kind.clone().unwrap_or("".to_string()), symbol.grandparent_kind.clone().unwrap_or("".to_string()), symbol.great_grandparent_kind.clone().unwrap_or("".to_string())));
+			}
+		}
+		let symbols_file = format!("{}/symbols_{}.csv.gz", results_folder, index);
+		let gz_file = fs::File::create(&symbols_file)
+			.map_err(|_| SymbolsError::ResultsWriteError)?;
+		let mut encoder = flate2::write::GzEncoder::new(gz_file, flate2::Compression::default());
+		encoder
+			.write_all(result_str.as_bytes())
+			.map_err(|_| SymbolsError::ResultsWriteError)?;
+		encoder.finish().map_err(|_| SymbolsError::ResultsWriteError)?;
+
+		Ok(())
+	}).map_err(|_| SymbolsError::SymbolsGatherError)?;
+
+	let gather_duration = start_gather_time.elapsed();
+
+	let metadata_file = fs::File::create(&metadata_path)
 		.map_err(|_| SymbolsError::ResultsWriteError)?;
-	results_writer
-		.write_all(result_str.as_bytes())
-		.map_err(|_| SymbolsError::ResultsWriteError)?;
-	let write_duration = start_write_time.elapsed();
+	let mut metadata_writer = std::io::BufWriter::new(metadata_file);
+	metadata_writer
+		.write_all(format!(
+			"Name: {}\nStars: {}\nForks: {}\nMain Branch: {}\nCreated At: {}\nIs Fork: {}\nLicense: {}\n\nAnalyzed at: {}\nCommit id: {}\n\nCloned in: {:.2?}\nGathererd and wrote results in: {:.2?}\n\nTotal Symbols: {}\n",
+			repo.name,
+			repo.stars,
+			repo.forks,
+			repo.main_branch,
+			repo.created_at,
+			repo.is_fork,
+			repo.license,
+			chrono::Utc::now(),
+			commit_id,
+			clone_duration,
+			gather_duration,
+			total_symbols
+		).as_bytes())
+		.map_err(|_| SymbolsError::ResultsWriteError)?; 
 	println!(
-		"[{}][{}/{}] Cloned {} in {:.2?}, gathered symbols in {:.2?}, wrote results in {:.2?} (total symbols: {} in {} files)",
-		repo.stargazers_count.unwrap_or(0),
-		repo.owner.as_ref().unwrap().login,
+		"[{}][{}] Cloned {} in {:.2?}, gathered and wrote results in {:.2?} (total symbols: {})",
+		repo.stars,
 		repo.name,
 		branch,
 		clone_duration,
 		gather_duration,
-		write_duration,
 		total_symbols,
-		result.1
 	);
 
 	Ok(())
 }
 
-pub async fn run_symbols_pipeline(
+pub struct Repo {
+	pub name: String,
+	pub stars: u32,
+	pub forks: u32,
+	pub main_branch: String,
+	pub created_at: chrono::DateTime<chrono::Utc>,
+	pub updated_at: chrono::DateTime<chrono::Utc>,
+	pub is_fork: bool,
+	pub size: u32,
+	pub language: String,
+	pub license: String,
+}
+
+pub fn run_symbols_pipeline(
+	input: &str,
+) {
+	let repositories = csv::Reader::from_path(input)
+		.expect("Failed to open repositories CSV file")
+		.records()
+		.enumerate()
+		.map(|(i, result)| {
+			let record = result.expect("Failed to read repository record");
+			let name = record[0].to_string();
+			let stars: u32 = record[1].parse().unwrap_or(0);
+			let forks: u32 = record[2].parse().unwrap_or(0);
+			let main_branch: String = record[3].to_string();
+			let created_at: chrono::DateTime<chrono::Utc> = record[4].parse().unwrap_or(chrono::Utc::now());
+			let updated_at: chrono::DateTime<chrono::Utc> = record[5].parse().unwrap_or(chrono::Utc::now());
+			let is_fork: bool = record[6].parse().unwrap_or(false);
+			let size: u32 = record[7].parse().unwrap_or(0);
+			let language: String = record[8].to_string();
+			let license: String = record[9].to_string();
+
+			Repo { name, stars, forks, main_branch, created_at, updated_at, is_fork, size, language, license }
+		})
+		.collect::<Vec<Repo>>();
+
+	let mut name_set = HashSet::new();
+	let mut unique_repos = Vec::new();
+
+	for repo in repositories {
+		if !name_set.contains(&repo.name) {
+			name_set.insert(repo.name.clone());
+			unique_repos.push(repo);
+		}
+	}
+
+	unique_repos.sort_by(|a, b| b.stars.cmp(&a.stars));
+
+
+	unique_repos.iter().take(20).par_bridge().for_each(|repo| {
+		match run_symbols_for_repo(repo) {
+			Ok(()) => {},
+			Err(e) => {
+				eprintln!("Error processing repository {}: {:?}", repo.name, e);
+			}
+		}
+		fs::remove_dir_all(format!("temp_symbols/{}", repo.name.replace("/", "_"))).unwrap_or(());
+	});
+}
+
+pub async fn run_symbols_collect_pipeline(
 	min_stars: &u32,
 ) {
 	let instance = octocrab::Octocrab::builder()
@@ -381,15 +476,6 @@ pub async fn run_symbols_pipeline(
 				.write_all(format!("{},{},{},{},{},{},{},{},{},{}\n", full_name, stars_count, forks_count, main_branch, created_at, updated_at, is_fork, size, language,license).as_bytes())
 				.expect("Failed to write to repositories file");
 		}
-
-		// page.items.iter().par_bridge().for_each(|repo| {
-		// 	let result = run_symbols_for_repo(repo);
-		// 	let repo_name = format!("{}_{}", repo.owner.as_ref().unwrap().login, repo.name);
-		// 	if let Err(e) = result {
-		// 		eprintln!("[{}] Error processing repository: {:?}", repo_name, e);
-		// 	}
-		// 	clean_temp_dir(format!("temp_symbols/{}", repo_name).as_str());
-		// });
 
 		if stars == highest_stars {
 			page_num += 1;

@@ -64,6 +64,18 @@ enum Commands {
     Symbols {
         #[arg(
             long,
+            help = "Input CSV file path",
+            default_value = "results/all_repositories.csv",
+        )]
+        input: String,
+    },
+    SymbolsSingle {
+        name: String,
+        main_branch: String,
+    },
+    SymbolsCollect {
+        #[arg(
+            long,
             help = "Minimum number of stars",
             default_value = "250",
         )]
@@ -224,10 +236,29 @@ async fn main() {
             }
             pipeline::clean_temp_dir(&temp_dir);
         }
-        Some(Commands::Symbols {
+        Some(Commands::Symbols { input }) => {
+            pipeline::run_symbols_pipeline(input);
+        }
+        Some(Commands::SymbolsCollect {
             min_stars
         }) => {
-            pipeline::run_symbols_pipeline(&min_stars).await;
+            pipeline::run_symbols_collect_pipeline(&min_stars).await;
+        }
+        Some(Commands::SymbolsSingle { name, main_branch }) => {
+            pipeline::run_symbols_for_repo(&pipeline::Repo {
+                name: name.clone(),
+                main_branch: main_branch.clone(),
+                stars: 0,
+                forks: 0,
+                is_fork: false,
+                size: 0,
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+                language: "".to_string(),
+                license: "".to_string(),
+            }).unwrap_or_else(|e| {
+                eprintln!("Error running symbols for repo: {:?}", e);
+            });
         }
     }
 }

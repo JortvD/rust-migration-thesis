@@ -9,6 +9,8 @@ use tokei::LanguageType;
 use tree_sitter::{Language, Node, Parser};
 use walkdir::WalkDir;
 
+use crate::pipeline::SymbolsError;
+
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
@@ -143,341 +145,6 @@ impl SupportedLanguage {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KindGroup {
-    Function,
-    Type,
-    Variable,
-    Other,
-}
-
-impl KindGroup {
-    pub fn to_string(self) -> &'static str {
-        match self {
-            KindGroup::Function => "Function",
-            KindGroup::Type => "Type",
-            KindGroup::Variable => "Variable",
-            KindGroup::Other => "Other",
-        }
-    }
-}
-
-fn decl_kind_candidates(lang: SupportedLanguage) -> &'static [(&'static str, KindGroup)] {
-    match lang {
-        SupportedLanguage::Rust => &[
-            ("function_item", KindGroup::Function),
-            ("function_signature", KindGroup::Function),
-            ("impl_item", KindGroup::Type),
-            ("struct_item", KindGroup::Type),
-            ("enum_item", KindGroup::Type),
-            ("trait_item", KindGroup::Type),
-            ("type_item", KindGroup::Type),
-            ("macro_definition", KindGroup::Other),
-            ("let_declaration", KindGroup::Variable),
-            ("let_statement", KindGroup::Variable),
-            ("const_item", KindGroup::Variable),
-            ("static_item", KindGroup::Variable),
-            ("mod_item", KindGroup::Other),
-            ("use_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::C | SupportedLanguage::Cpp => &[
-            ("function_definition", KindGroup::Function),
-            ("function_declarator", KindGroup::Function),
-            ("declarator", KindGroup::Variable),
-            ("init_declarator", KindGroup::Variable),
-            ("field_declaration", KindGroup::Variable),
-            ("parameter_declaration", KindGroup::Variable),
-            ("preproc_ifdef", KindGroup::Other),
-            ("preproc_if", KindGroup::Other),
-            ("preproc_define", KindGroup::Other),
-
-            ("type_definition", KindGroup::Type),
-            ("enum_specifier", KindGroup::Type),
-            ("interface_specifier", KindGroup::Type),
-            ("class_specifier", KindGroup::Type),   // C++
-            ("struct_specifier", KindGroup::Type),  // C++
-            ("union_specifier", KindGroup::Type),   // C++
-
-            ("namespace_definition", KindGroup::Other), // C++
-            ("declaration", KindGroup::Other),
-            ("typedef_declaration", KindGroup::Type),
-            ("macro_definition", KindGroup::Other),
-        ],
-        SupportedLanguage::Csharp => &[
-            ("method_declaration", KindGroup::Function),
-            ("function_definition", KindGroup::Function),
-            ("constructor_declaration", KindGroup::Function),
-            ("delegate_declaration", KindGroup::Type),
-            ("class_declaration", KindGroup::Type),
-            ("struct_declaration", KindGroup::Type),
-            ("interface_declaration", KindGroup::Type),
-            ("enum_declaration", KindGroup::Type),
-            ("field_declaration", KindGroup::Variable),
-            ("property_declaration", KindGroup::Variable),
-            ("variable_declarator", KindGroup::Variable),
-            ("local_declaration_statement", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("namespace_declaration", KindGroup::Other),
-            ("attribute", KindGroup::Other),
-        ],
-        SupportedLanguage::Javascript
-        | SupportedLanguage::Typescript
-        | SupportedLanguage::Tsx => &[
-            ("function_declaration", KindGroup::Function),
-            ("function", KindGroup::Function),
-            ("arrow_function", KindGroup::Function),
-            ("method_definition", KindGroup::Function),
-            ("method_signature", KindGroup::Function),
-
-            ("class_declaration", KindGroup::Type),
-            ("class", KindGroup::Type),
-            ("interface_declaration", KindGroup::Type),
-            ("interface", KindGroup::Type),
-            ("type_alias_declaration", KindGroup::Type),
-            ("enum_declaration", KindGroup::Type),
-            ("object_type", KindGroup::Type),
-
-            ("variable_declaration", KindGroup::Variable),
-            ("variable_declarator", KindGroup::Variable),
-            ("lexical_declaration", KindGroup::Variable),
-            ("const_declaration", KindGroup::Variable),
-            ("formal_parameter", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("formal_parameters", KindGroup::Variable),
-
-            ("function_signature", KindGroup::Other),
-        ],
-        SupportedLanguage::Python => &[
-            ("function_definition", KindGroup::Function),
-            ("decorated_definition", KindGroup::Function),
-            ("class_definition", KindGroup::Type),
-            ("typed_parameter", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("assignment", KindGroup::Variable),
-            ("augmented_assignment", KindGroup::Variable),
-            ("for_statement", KindGroup::Other),
-            ("with_statement", KindGroup::Other),
-            ("with_item", KindGroup::Other),
-            ("global_statement", KindGroup::Other),
-        ],
-        SupportedLanguage::Go => &[
-            ("function_declaration", KindGroup::Function),
-            ("method_declaration", KindGroup::Function),
-            ("func_literal", KindGroup::Function),
-            ("short_var_declaration", KindGroup::Variable),
-            ("var_declaration", KindGroup::Variable),
-            ("const_declaration", KindGroup::Variable),
-            ("type_declaration", KindGroup::Type),
-            ("type_spec", KindGroup::Type),
-            ("field_declaration", KindGroup::Variable),
-            ("parameter_declaration", KindGroup::Variable),
-            ("receiver_parameter", KindGroup::Variable),
-            ("interface_type", KindGroup::Type),
-            ("package_clause", KindGroup::Other),
-        ],
-        SupportedLanguage::Java => &[
-            ("class_declaration", KindGroup::Type),
-            ("interface_declaration", KindGroup::Type),
-            ("enum_declaration", KindGroup::Type),
-            ("annotation_type_declaration", KindGroup::Type),
-            ("method_declaration", KindGroup::Function),
-            ("constructor_declaration", KindGroup::Function),
-            ("field_declaration", KindGroup::Variable),
-            ("variable_declarator", KindGroup::Variable),
-            ("local_variable_declaration", KindGroup::Variable),
-            ("formal_parameter", KindGroup::Variable),
-            ("package_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::Swift => &[
-            ("function_declaration", KindGroup::Function),
-            ("method_declaration", KindGroup::Function),
-            ("class_declaration", KindGroup::Type),
-            ("struct_declaration", KindGroup::Type),
-            ("enum_declaration", KindGroup::Type),
-            ("protocol_declaration", KindGroup::Type),
-            ("typealias_declaration", KindGroup::Type),
-            ("variable_declaration", KindGroup::Variable),
-            ("constant_declaration", KindGroup::Variable),
-            ("parameter_clause", KindGroup::Variable),
-            ("extension_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::Dart => &[
-            ("function_declaration", KindGroup::Function),
-            ("method_declaration", KindGroup::Function),
-            ("class_declaration", KindGroup::Type),
-            ("mixin_declaration", KindGroup::Type),
-            ("extension_declaration", KindGroup::Type),
-            ("typedef_declaration", KindGroup::Type),
-            ("variable_declaration", KindGroup::Variable),
-            ("field_declaration", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("constructor_declaration", KindGroup::Function),
-        ],
-        SupportedLanguage::Elixir => &[
-            ("function_definition", KindGroup::Function),
-            ("module_definition", KindGroup::Type),
-            ("attribute", KindGroup::Other),
-            ("variable_assignment", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("alias", KindGroup::Other),
-        ],
-        SupportedLanguage::Haskell => &[
-            ("function_declaration", KindGroup::Function),
-            ("pattern_binding", KindGroup::Variable),
-            ("data_declaration", KindGroup::Type),
-            ("newtype_declaration", KindGroup::Type),
-            ("type_declaration", KindGroup::Type),
-            ("class_declaration", KindGroup::Type),
-            ("instance_declaration", KindGroup::Other),
-            ("type_signature", KindGroup::Other),
-        ],
-        SupportedLanguage::Lua => &[
-            ("function_declaration", KindGroup::Function),
-            ("function_definition", KindGroup::Function),
-            ("local_variable_declaration", KindGroup::Variable),
-            ("variable_declaration", KindGroup::Variable),
-            ("assignment_statement", KindGroup::Variable),
-            ("local_statement", KindGroup::Variable),
-            ("block", KindGroup::Other),
-        ],
-        SupportedLanguage::OCaml => &[
-            ("function_definition", KindGroup::Function),
-            ("value_binding", KindGroup::Variable),
-            ("let_binding", KindGroup::Variable),
-            ("type_definition", KindGroup::Type),
-            ("module_definition", KindGroup::Type),
-            ("module_binding", KindGroup::Type),
-            ("external_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::Ruby => &[
-            ("method", KindGroup::Function),
-            ("class", KindGroup::Type),
-            ("module", KindGroup::Type),
-            ("constant", KindGroup::Variable),
-            ("assignment", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("singleton_method", KindGroup::Function),
-            ("module_function", KindGroup::Function),
-            ("singleton_class", KindGroup::Type),
-            ("block", KindGroup::Other),
-            ("method_call", KindGroup::Function),
-            ("symbol_literal", KindGroup::Variable),
-        ],
-        SupportedLanguage::PHP => &[
-            ("function_definition", KindGroup::Function),
-            ("method_declaration", KindGroup::Function),
-            ("class_declaration", KindGroup::Type),
-            ("interface_declaration", KindGroup::Type),
-            ("trait_declaration", KindGroup::Type),
-            ("variable_name", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("constant_declaration", KindGroup::Variable),
-            ("namespace_definition", KindGroup::Other),
-        ],
-        SupportedLanguage::Nix => &[
-            ("function", KindGroup::Function),
-            ("let_in", KindGroup::Other),
-            ("attribute_set", KindGroup::Other),
-            ("identifier", KindGroup::Variable),
-        ],
-        SupportedLanguage::Bash => &[
-            ("function_definition", KindGroup::Function),
-            ("variable_assignment", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("command", KindGroup::Other),
-        ],
-        SupportedLanguage::Scala => &[
-            ("function_definition", KindGroup::Function),
-            ("method_definition", KindGroup::Function),
-            ("class_definition", KindGroup::Type),
-            ("object_definition", KindGroup::Type),
-            ("trait_definition", KindGroup::Type),
-            ("variable_declaration", KindGroup::Variable),
-            ("value_declaration", KindGroup::Variable),
-            ("parameter", KindGroup::Variable),
-            ("package_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::ObjectiveC => &[
-            ("function_definition", KindGroup::Function),
-            ("method_declaration", KindGroup::Function),
-            ("interface_declaration", KindGroup::Type),
-            ("implementation_declaration", KindGroup::Type),
-            ("protocol_declaration", KindGroup::Type),
-            ("variable_declaration", KindGroup::Variable),
-            ("parameter_declaration", KindGroup::Variable),
-            ("property_declaration", KindGroup::Variable),
-            ("category_declaration", KindGroup::Other),
-        ],
-        SupportedLanguage::Clojure => &[
-            ("function_definition", KindGroup::Function),
-            ("def", KindGroup::Variable),
-            ("defn", KindGroup::Function),
-            ("defmacro", KindGroup::Function),
-            ("deftype", KindGroup::Type),
-            ("defrecord", KindGroup::Type),
-            ("defprotocol", KindGroup::Type),
-            ("ns", KindGroup::Other),
-        ],
-    }
-}
-
-fn find_name_child<'a>(node: Node<'a>) -> Option<Node<'a>> {
-    if let Some(n) = node.child_by_field_name("name") {
-        return Some(n);
-    }
-
-    if let Some(decl) = node.child_by_field_name("declarator") {
-        if let Some(n) = decl.child_by_field_name("name") {
-            return Some(n);
-        }
-        if may_be_identifier(decl.kind()) {
-            return Some(decl);
-        }
-    }
-
-    for i in 0..node.child_count() {
-        let c = node.child(i).unwrap();
-        if may_be_identifier(c.kind()) {
-            return Some(c);
-        }
-    }
-
-    let mut stack = vec![node];
-    while let Some(n) = stack.pop() {
-        for child in n.children(&mut n.walk()) {
-            let k = child.kind();
-            if may_be_identifier(k) {
-                return Some(child);
-            }
-            
-            stack.push(child);
-        }
-    }
-
-    None
-}
-
-fn may_be_identifier(kind: &str) -> bool {
-    kind.contains("identifier")
-        || kind == "identifier"
-        || kind == "type_identifier"
-        || kind == "field_identifier"
-        || kind == "property_identifier"
-        || kind == "variable_name"
-        || kind == "name"
-        || kind == "module_name"
-        || kind == "scoped_identifier"
-}
-
-fn find_decl_kind(lang: SupportedLanguage, kind: &str) -> Option<KindGroup> {
-    for &candidate in decl_kind_candidates(lang) {
-        if candidate.0 == kind || kind.contains(candidate.0) || candidate.0.contains(kind) {
-            return Some(candidate.1);
-        }
-    }
-    None
-}
-
 fn normalize_name(name: &str) -> String {
     name.to_lowercase().replace("_", "")
 }
@@ -501,16 +168,16 @@ pub fn extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        if let Some(_) = find_decl_kind(lang, kind) {
-            if let Some(name_node) = find_name_child(node) {
-                if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
-                    let normalized = normalize_name(text);
-                    if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
-                        out.insert(normalized);
-                    }
-                }
-            }
-        }
+        // if let Some(_) = find_decl_kind(lang, kind) {
+        //     if let Some(name_node) = find_name_child(node) {
+        //         if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
+        //             let normalized = normalize_name(text);
+        //             if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
+        //                 out.insert(normalized);
+        //             }
+        //         }
+        //     }
+        // }
 
         // DFS into children
         let mut cursor = node.walk();
@@ -591,13 +258,16 @@ pub fn find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<S
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SymbolData {
     pub name: String,
-    pub kind: String,
-    pub name_kind: String,
-    pub group: KindGroup,
+    pub parent_kind: Option<String>,
+    pub grandparent_kind: Option<String>,
+    pub great_grandparent_kind: Option<String>,
+    pub path: String,
+    pub start: usize,
 }
 
 pub fn extensive_extract_symbols_for_language(
     parser: &mut Parser,
+    relative_path: String,
     lang: SupportedLanguage,
     source: &str,
     out: &mut HashSet<SymbolData>,
@@ -613,16 +283,20 @@ pub fn extensive_extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        if let Some(group) = find_decl_kind(lang, kind) {
-            if let Some(name_node) = find_name_child(node) {
-                if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
-                    out.insert(SymbolData {
-                        name: text.to_string(),
-                        kind: kind.to_string(),
-                        name_kind: name_node.kind().to_string(),
-                        group,
-                    });
-                }
+        if kind.to_lowercase().contains("identifier") {
+            let parent = node.parent();
+            let grandparent = parent.and_then(|p| p.parent());
+            let great_grandparent = grandparent.and_then(|gp| gp.parent());
+
+            if let Some(text) = node.utf8_text(source.as_bytes()).ok() {
+                out.insert(SymbolData {
+                    name: text.to_string(),
+                    parent_kind: parent.map(|p| p.kind().to_string()),
+                    grandparent_kind: grandparent.map(|gp| gp.kind().to_string()),
+                    great_grandparent_kind: great_grandparent.map(|ggp| ggp.kind().to_string()),
+                    path: relative_path.clone(),
+                    start: node.start_byte(),
+                });
             }
         }
 
@@ -642,14 +316,15 @@ pub fn extensive_extract_symbols_for_language(
 
 pub fn extensive_extract_symbols_for_file(
     path: &Path,
+    relative_path: String,
     parser_map: &mut HashMap<SupportedLanguage, Parser>,
     symbols_map: &mut HashMap<SupportedLanguage, HashSet<SymbolData>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let src = fs::read_to_string(path)?;
 
     let lang = match SupportedLanguage::from_path(path) {
         Some(l) => l,
-        None => return Ok(()),
+        None => return Ok(false),
     };
 
     let parser = parser_map.entry(lang).or_insert_with(|| {
@@ -661,19 +336,24 @@ pub fn extensive_extract_symbols_for_file(
 
     let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
 
-    extensive_extract_symbols_for_language(parser, lang, &src, out_set);
+    extensive_extract_symbols_for_language(parser, relative_path, lang, &src, out_set);
 
-    Ok(())
+    Ok(true)
 }
 
-pub fn extensive_find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<SymbolData>>, usize), Box<dyn std::error::Error>> {
+pub fn extensive_find_symbols(
+    root: &Path,
+    per_file: usize,
+    save: &dyn Fn(usize, HashMap<SupportedLanguage, HashSet<SymbolData>>) -> Result<(), SymbolsError>,
+) -> Result<usize, SymbolsError> {
     let mut symbols_map: HashMap<SupportedLanguage, HashSet<SymbolData>> = HashMap::new();
     let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
-    let mut file_count = 0;
+    let mut symbols_count = 0;
+    let mut index: usize = 0;
 
     for entry in WalkDir::new(root).into_iter().filter_entry(|e| {
         if let Some(name) = e.file_name().to_str() {
-            name != ".git" && name != "target"
+            name != ".git" && name != "node_modules" && name != ".venv" && name != "__pycache__" && name != "vendor"
         } else {
             true
         }
@@ -693,11 +373,30 @@ pub fn extensive_find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage,
             continue;
         }
 
-        if let Err(_) = extensive_extract_symbols_for_file(&path, &mut parser_map, &mut symbols_map) {
-            continue;
+        let relative_path = match path.strip_prefix(root) {
+            Ok(rel_path) => rel_path.to_string_lossy().to_string(),
+            Err(_) => continue,
+        };
+
+        match extensive_extract_symbols_for_file(&path, relative_path, &mut parser_map, &mut symbols_map) {
+            Ok(true) => {},
+            Ok(false) => continue,
+            Err(_) => continue,
         }
-        file_count += 1;
+
+        let size = symbols_map.values().map(|s| s.len()).sum::<usize>();
+        if size >= per_file {
+            save(index, symbols_map.clone())?;
+            symbols_count += size;
+            symbols_map.clear();
+            index += 1;
+        }
     }
 
-    Ok((symbols_map, file_count))
+    if !symbols_map.is_empty() {
+        symbols_count += symbols_map.values().map(|s| s.len()).sum::<usize>();
+        save(index, symbols_map)?;
+        index += 1;
+    }
+    Ok(symbols_count)
 }
