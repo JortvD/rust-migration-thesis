@@ -106,7 +106,7 @@ async fn main() {
     });
 
     ThreadPoolBuilder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(16 * 1024 * 1024)
         .build_global().unwrap();
 
     let args = Args::parse();
