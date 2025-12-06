@@ -237,6 +237,12 @@ pub fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
+	println!(
+		"[Thread {:?}] Processing repository: {}",
+		std::thread::current().id(),
+		repo.name
+	);
+
 	let branch = &repo.main_branch;
 
 	//let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
