@@ -237,8 +237,11 @@ pub fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
-	let process_id = std::process::id();
-	println!("Process ID: {} for {}", process_id, repo.name);
+	let thread_id = rayon::current_thread_index()
+		.map(|id| id as u32)
+		.unwrap_or_else(|| 0 as u32);
+
+	println!("[{}][{}] Starting analysis on thread {}", repo.stars, repo.name, thread_id);
 
 	let branch = &repo.main_branch;
 
