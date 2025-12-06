@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::io::Read;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use tokei::LanguageType;
 use tree_sitter::{Language, Node, Parser};
@@ -257,11 +258,11 @@ pub fn find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<S
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SymbolData {
-    pub name: String,
-    pub parent_kind: Option<String>,
-    pub grandparent_kind: Option<String>,
-    pub great_grandparent_kind: Option<String>,
-    pub path: String,
+    pub name: Rc<str>,
+    pub parent_kind: Option<Rc<str>>,
+    pub grandparent_kind: Option<Rc<str>>,
+    pub great_grandparent_kind: Option<Rc<str>>,
+    pub path: Rc<str>,
     pub start: usize,
 }
 
@@ -277,6 +278,7 @@ pub fn extensive_extract_symbols_for_language(
         None => return,
     };
 
+    let path_rc: Rc<str> = Rc::from(relative_path.to_string().into_boxed_str());
     let mut stack = Vec::with_capacity(64);
     stack.push(tree.root_node());
 
@@ -290,11 +292,11 @@ pub fn extensive_extract_symbols_for_language(
 
             if let Some(text) = node.utf8_text(source.as_bytes()).ok() {
                 out.insert(SymbolData {
-                    name: text.to_string(),
-                    parent_kind: parent.map(|p| p.kind().to_string()),
-                    grandparent_kind: grandparent.map(|gp| gp.kind().to_string()),
-                    great_grandparent_kind: great_grandparent.map(|ggp| ggp.kind().to_string()),
-                    path: relative_path.clone(),
+                    name: Rc::from(text), // allocate once per symbol name
+                    parent_kind: parent.map(|p| Rc::from(p.kind())),
+                    grandparent_kind: grandparent.map(|gp| Rc::from(gp.kind())),
+                    great_grandparent_kind: great_grandparent.map(|ggp| Rc::from(ggp.kind())),
+                    path: path_rc.clone(), // cheap clone of Rc
                     start: node.start_byte(),
                 });
             }

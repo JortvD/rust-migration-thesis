@@ -277,7 +277,7 @@ pub fn run_symbols_for_repo(
 		fs::create_dir_all(&results_folder).map_err(|_| SymbolsError::ResultsDirError)?;
 	}
 
-	let total_symbols = code::extensive_find_symbols(temp_folder_path, 1_000_000, &|index: usize, symbols_result: HashMap<SupportedLanguage, HashSet<SymbolData>>| -> Result<(), SymbolsError> {
+	let total_symbols = code::extensive_find_symbols(temp_folder_path, 5_000_000, &|index: usize, symbols_result: HashMap<SupportedLanguage, HashSet<SymbolData>>| -> Result<(), SymbolsError> {
 		let total_symbols: usize = symbols_result.values().map(|symbols| symbols.len()).sum();
 		if total_symbols == 0 {
 			return Ok(());
@@ -287,7 +287,7 @@ pub fn run_symbols_for_repo(
 
 		for (lang, symbols) in &symbols_result {
 			for symbol in symbols {
-				result_str.push_str(&format!("{},{},{},{},{},{},{}\n", lang.to_string(), symbol.path, symbol.start, symbol.name, symbol.parent_kind.clone().unwrap_or("".to_string()), symbol.grandparent_kind.clone().unwrap_or("".to_string()), symbol.great_grandparent_kind.clone().unwrap_or("".to_string())));
+				result_str.push_str(&format!("{},{},{},{},{},{},{}\n", lang.to_string(), symbol.path, symbol.start, symbol.name, symbol.parent_kind.clone().unwrap_or("".to_string().into()), symbol.grandparent_kind.clone().unwrap_or("".to_string().into()), symbol.great_grandparent_kind.clone().unwrap_or("".to_string().into())));
 			}
 		}
 		let symbols_file = format!("{}/symbols_{}.csv.gz", results_folder, index);
