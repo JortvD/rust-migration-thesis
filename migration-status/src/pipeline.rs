@@ -246,8 +246,8 @@ pub fn run_symbols_for_repo(
 	let os_tid = os_thread_id();
 	let std_tid = std::thread::current().id();
 	let std_name = std::thread::current().name().map(|name| name.to_string()).unwrap_or_else(|| "<unnamed>".to_string());
-	println!("rayon_idx={} os_tid={} std_id={:?} std_name={}",
-         thread_id, os_tid, std_tid, std_name);
+	println!("rayon_idx={} os_tid={} std_id={:?} name={}",
+         thread_id, os_tid, std_tid, repo.name);
 
 	let branch = &repo.main_branch;
 
