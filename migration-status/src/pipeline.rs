@@ -221,6 +221,11 @@ pub enum SymbolsError {
 	ResultsWriteError,
 }
 
+fn os_thread_id() -> libc::pid_t {
+    // safe wrapper around syscall(SYS_gettid)
+    unsafe { libc::syscall(libc::SYS_gettid) as libc::pid_t }
+}
+
 pub fn run_symbols_for_repo(
 	repo: &Repo
 ) -> Result<(), SymbolsError> {
@@ -237,11 +242,12 @@ pub fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
-	let thread_id = rayon::current_thread_index()
-		.map(|id| id as u32)
-		.unwrap_or_else(|| 0 as u32);
-
-	println!("[{}][{}] Starting analysis on thread {}", repo.stars, repo.name, thread_id);
+	let thread_id = rayon::current_thread_index().map(|id| id as u32).unwrap_or(0);
+	let os_tid = os_thread_id();
+	let std_tid = std::thread::current().id();
+	let std_name = std::thread::current().name().unwrap_or("<unnamed>");
+	println!("rayon_idx={} os_tid={} std_id={:?} std_name={}",
+         thread_id, os_tid, std_tid, std_name);
 
 	let branch = &repo.main_branch;
 
