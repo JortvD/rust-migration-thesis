@@ -387,7 +387,7 @@ pub fn run_symbols_pipeline(
 	unique_repos.sort_by(|a, b| b.stars.cmp(&a.stars));
 
 
-	unique_repos.iter().take(20).par_bridge().for_each(|repo| {
+	unique_repos.iter().par_bridge().for_each(|repo| {
 		match run_symbols_for_repo(repo) {
 			Ok(()) => {},
 			Err(e) => {
