@@ -2,6 +2,7 @@ use std::{collections::HashSet, fs, io::Write, path::Path};
 
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
+use rayon::ThreadPoolBuilder;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -103,6 +104,10 @@ async fn main() {
         drop(profiler);
         std::process::exit(0);
     });
+
+    ThreadPoolBuilder::new()
+        .stack_size(8 * 1024 * 1024)
+        .build_global().unwrap();
 
     let args = Args::parse();
     dotenv().ok();
