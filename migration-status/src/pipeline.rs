@@ -237,11 +237,8 @@ pub fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
-	println!(
-		"[Thread {:?}] Processing repository: {}",
-		std::thread::current().id(),
-		repo.name
-	);
+	let process_id = std::process::id();
+	println!("Process ID: {} for {}", process_id, repo.name);
 
 	let branch = &repo.main_branch;
 
