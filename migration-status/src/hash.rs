@@ -62,7 +62,7 @@ fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) 
     (total_count, filtered_count, unique_identifiers.into_iter().collect())
 }
 
-const MIN_LENGTH: usize = 5;
+const MIN_LENGTH: usize = 20;
 
 pub fn hash_for_project(
     folder: PathBuf,

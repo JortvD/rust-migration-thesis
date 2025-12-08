@@ -4,9 +4,10 @@ use std::fs;
 use std::path::Path;
 use std::io::Read;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use tokei::LanguageType;
-use tree_sitter::{Language, Node, Parser};
+use tree_sitter::{Language, Node, ParseOptions, Parser};
 use walkdir::WalkDir;
 
 use crate::pipeline::SymbolsError;
@@ -272,7 +273,16 @@ pub fn extensive_extract_symbols_for_language(
     source: &str,
     out: &mut HashSet<Box<SymbolData>>,
 ) {
-    let tree = match parser.parse(&source, None) {
+    let start_time = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(5);
+    let mut read_callback = |offset, _position| {
+        source.as_bytes().get(offset..).map(|s| &s[..]).unwrap()
+    };
+    let tree = match parser.parse_with_options(&mut read_callback, None, Some(ParseOptions {
+        progress_callback: Some(&mut |_| {
+            start_time.elapsed() > timeout_duration
+        })
+    })) {
         Some(t) => t,
         None => return,
     };
@@ -331,7 +341,6 @@ pub fn extensive_extract_symbols_for_file(
         let mut p = Parser::new();
         p.set_language(&lang.ts_language())
             .expect("Failed to set Tree-sitter language");
-        p.set_timeout_micros(60_000_000);
         p
     });
 
