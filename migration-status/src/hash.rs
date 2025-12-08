@@ -107,14 +107,14 @@ pub fn hash_for_project(
     ).unwrap();
     writer.write_all(b"\n").unwrap();
 
-    println!(
-		"[{}] {} -> {} -> {} symbols (total) processed and hashed in {} ms.", 
-		project, 
-		total_identifiers_count, 
-		total_filtered_count, 
-		total_symbol_count,
-		start_time.elapsed().as_millis()
-	);
+    // println!(
+	// 	"[{}] {} -> {} -> {} symbols (total) processed and hashed in {} ms.", 
+	// 	project, 
+	// 	total_identifiers_count, 
+	// 	total_filtered_count, 
+	// 	total_symbol_count,
+	// 	start_time.elapsed().as_millis()
+	// );
 }
 
 struct HashData {
