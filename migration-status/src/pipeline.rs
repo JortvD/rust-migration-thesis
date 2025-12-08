@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
+use indicatif::{ProgressBar, ProgressStyle};
+
 use rayon::prelude::*;
 
 use crate::code;
@@ -502,13 +504,30 @@ pub fn run_symbols_hash_pipeline(
 		fs::remove_file(output).expect("Failed to clear output file");
 	}
 
-	folders.into_iter().par_bridge().for_each(|dir| {
-		let dir = dir.expect("Failed to read directory").path();
-		if dir.is_dir() {
-			hash::hash_for_project(
-				dir,
-				output.to_string()
-			);
-		}
+	let input_path = Path::new(input);
+	let folders: Vec<_> = fs::read_dir(input_path)
+        .expect("Failed to read input directory")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect();
+
+	let total_size = folders.len();
+	let bar = ProgressBar::new(total_size as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+            )
+            .expect("Failed to create template")
+            .progress_chars("#>-"),
+    );
+    bar.set_message("Hashing projects...");
+	
+	folders.par_iter().for_each(|dir| {
+		hash::hash_for_project(dir.to_path_buf(), output.to_string());
+		bar.inc(1);
 	});
+
+	bar.finish_with_message("Hashing completed.");
 }
