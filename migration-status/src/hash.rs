@@ -222,7 +222,8 @@ pub fn find_most_similar(
 
     println!("Most similar to {} (processed {} items):", item.project, item.size);
 	let from_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, item.project)), true);
-    for (i, (similarity, hash_data)) in results.iter().take(50).enumerate() {
+	let mut similar = Vec::new();
+    for (i, (similarity, hash_data)) in results.iter().take(100).enumerate() {
 		let to_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, hash_data.project)), false);
 		let common: HashSet<_> = from_identifiers.intersection(&to_identifiers).collect();
 		let common_count = common.len();
@@ -242,21 +243,36 @@ pub fn find_most_similar(
 		} else {
 			0.0
 		};
-        println!(
-            "  {}. {} - Similarity: {:.4} (Size: {}) - Common Identifiers: {} (Jaccard Index: {:.4}, From: {:.2}%, To: {:.2}%)",
-            i + 1,
-            hash_data.project,
-            similarity,
-            hash_data.size,
+		similar.push((i, hash_data, *similarity, common_count, jaccard_index, percentage_from, percentage_to));
+        // println!(
+        //     "  {}. {} - Similarity: {:.4} (Size: {}) - Common Identifiers: {} (Jaccard Index: {:.4}, From: {:.2}%, To: {:.2}%)",
+        //     i + 1,
+        //     hash_data.project,
+        //     similarity,
+        //     hash_data.size,
+		// 	common_count,
+		// 	jaccard_index,
+		// 	percentage_from,
+		// 	percentage_to
+        // );
+		// let mut common: Vec<_> = common.into_iter().collect();
+		// common.sort_by(|a, b| b.len().cmp(&a.len()));
+        // for common_identifier in common.iter().take(5) {
+		// 	println!("    Common Identifier: {}", common_identifier);
+		// }
+    }
+	similar.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap_or(std::cmp::Ordering::Equal));
+	for (i, hash_data, similarity, common_count, jaccard_index, percentage_from, percentage_to) in similar.iter().take(30) {
+		println!(
+			"  {}. {} - Similarity: {:.4} (Size: {}) - Common Identifiers: {} (Jaccard Index: {:.4}, From: {:.2}%, To: {:.2}%)",
+			i + 1,
+			hash_data.project,
+			similarity,
+			hash_data.size,
 			common_count,
 			jaccard_index,
 			percentage_from,
 			percentage_to
-        );
-		let mut common: Vec<_> = common.into_iter().collect();
-		common.sort_by(|a, b| b.len().cmp(&a.len()));
-        for common_identifier in common.iter().take(5) {
-			println!("    Common Identifier: {}", common_identifier);
-		}
-    }
+		);
+	}
 }
