@@ -125,29 +125,6 @@ enum Commands {
     }
 }
 
-fn read_hashes(input: &str, repo_name: &str) -> Result<Vec<u64>, std::io::Error> {
-    let file = fs::File::open(input)?;
-    let reader = std::io::BufReader::new(file);
-
-    for line in reader.lines() {
-        let line = line?;
-        let tokens: Vec<&str> = line.split(',').collect();
-        if tokens.len() > 1 && tokens[0] == repo_name {
-            let hashes: Vec<u64> = tokens[2..]
-                .iter()
-                .filter(|s| !s.is_empty())
-                .map(|s| s.parse::<u64>().unwrap())
-                .collect();
-            return Ok(hashes);
-        }
-    }
-
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        format!("Repository {} not found in input file", repo_name),
-    ))
-}
-
 #[tokio::main]
 async fn main() {
     #[cfg(feature = "dhat-heap")]

@@ -64,25 +64,20 @@ pub fn hash_for_project(
     output: String
 ) {
     let project = folder.file_name().unwrap().to_str().unwrap().to_string();
-	let start_time = std::time::Instant::now();
 
     let bh = BuildHasherDefault::<FnvHasher>::default();
     let mut hasher = SuperMinHash2::<u64, String, _>::new(1024, bh);
-    
-    let mut total_identifiers_count = 0;
-    let mut total_filtered_count = 0;
-    let mut total_symbol_count = 0;
 
     let paths = fs::read_dir(&folder).expect("Failed to read directory");
 
-    for path in paths {
+    for (i, path) in paths.enumerate() {
         let path = path.expect("Failed to read path").path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("gz") {
             let (file_count, file_filtered_count, normalized_identifiers) = process_file_identifiers(&path);
-            
-            total_identifiers_count += file_count;
-            total_filtered_count += file_filtered_count;
-            total_symbol_count += normalized_identifiers.len();
+
+			if i > 50 {
+				println!("for {} processed {} files...", project, i + 1);
+			}
 
             for identifier in normalized_identifiers {
                 hasher.sketch(&identifier).unwrap();
@@ -106,15 +101,6 @@ pub fn hash_for_project(
         .as_bytes()
     ).unwrap();
     writer.write_all(b"\n").unwrap();
-
-    // println!(
-	// 	"[{}] {} -> {} -> {} symbols (total) processed and hashed in {} ms.", 
-	// 	project, 
-	// 	total_identifiers_count, 
-	// 	total_filtered_count, 
-	// 	total_symbol_count,
-	// 	start_time.elapsed().as_millis()
-	// );
 }
 
 struct HashData {
