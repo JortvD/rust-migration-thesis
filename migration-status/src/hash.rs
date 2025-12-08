@@ -41,18 +41,23 @@ fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) 
     let mut filtered_count = 0;
     let mut unique_identifiers = std::collections::HashSet::new();
 
-    for line in decoder.lines().filter_map(|line| line.ok()) {
-        if let Some(identifier) = parse_identifier(&line) {
-            total_count += 1;
-            if identifier.name.len() >= MIN_LENGTH {
-                filtered_count += 1;
-                let normalized: String = identifier.name.chars()
-                    .filter(|c| *c != '_')
-                    .map(|c| c.to_ascii_lowercase())
-                    .collect();
-                unique_identifiers.insert(normalized);
-            }
-        }
+    for line in decoder.lines() {
+		if let Ok(line) = line {
+			if let Some(identifier) = parse_identifier(&line) {
+				total_count += 1;
+				if identifier.name.len() >= MIN_LENGTH {
+					filtered_count += 1;
+					let normalized: String = identifier.name.chars()
+						.filter(|c| *c != '_')
+						.map(|c| c.to_ascii_lowercase())
+						.collect();
+					unique_identifiers.insert(normalized);
+				}
+			}
+		} else {
+			eprintln!("Failed to read line in file {:?}", file_path);
+			break;
+		}
     }
 
     (total_count, filtered_count, unique_identifiers.into_iter().collect())
