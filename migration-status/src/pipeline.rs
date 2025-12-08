@@ -299,6 +299,7 @@ pub fn run_symbols_for_repo(
 	if !Path::new(&results_folder).exists() {
 		fs::create_dir_all(&results_folder).map_err(|_| SymbolsError::ResultsDirError)?;
 	}
+	bar.set_message(format!("{}: Gathering", repo_name));
 
 	let total_symbols = code::extensive_find_symbols(temp_folder_path, 1_000_000, &|index: usize, symbols_result: HashMap<SupportedLanguage, HashSet<Box<SymbolData>>>| -> Result<(), SymbolsError> {
 		let total_symbols: usize = symbols_result.values().map(|symbols| symbols.len()).sum();
