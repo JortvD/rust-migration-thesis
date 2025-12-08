@@ -108,8 +108,8 @@ enum Commands {
         
         #[arg(
             long,
-            help = "Output CSV path",
-            default_value = "results/symbols_hash.csv",
+            help = "Output binary path",
+            default_value = "results/symbols_hash.bin",
         )]
         output: String,
     },
@@ -118,8 +118,8 @@ enum Commands {
 
         #[arg(
             long,
-            help = "Input CSV file path",
-            default_value = "results/symbols_hash.csv",
+            help = "Input binary file path",
+            default_value = "results/symbols_hash.bin",
         )]
         input: String,
     }

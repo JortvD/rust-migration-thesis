@@ -1,203 +1,209 @@
-use std::{collections::HashSet, fs::{self, File}, hash::BuildHasherDefault, io::{BufRead, BufReader, BufWriter, Read, Write}, path::PathBuf, sync::{Arc, Mutex}};
+use std::{
+    fs::{self, File},
+    hash::BuildHasherDefault,
+    io::{BufRead, BufReader, BufWriter, Read, Write},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use flate2::bufread::GzDecoder;
 use fnv::FnvHasher;
-use probminhash::superminhasher2::{SuperMinHash2, get_jaccard_index_estimate};
 use indicatif::ProgressBar;
+use probminhash::superminhasher2::{get_jaccard_index_estimate, SuperMinHash2};
 
-#[derive(Clone)]
-struct Identifier {
-	language: String,
-	path: String,
-	start: usize,
-	name: String,
-	parent_kind: Option<String>,
-	grandparent_kind: Option<String>,
-	great_grandparent_kind: Option<String>,
+const MIN_LENGTH: usize = 10;
+const NUM_HASHES: usize = 1024;
+
+fn read_u32<R: Read>(reader: &mut R) -> std::io::Result<u32> {
+    let mut buffer = [0u8; 4];
+    reader.read_exact(&mut buffer)?;
+    Ok(u32::from_le_bytes(buffer))
 }
 
-fn parse_identifier(line: &str) -> Option<Identifier> {
-	let tokens: Vec<&str> = line.split(',').collect();
-	if tokens.len() < 7 {
-		return None;
-	}
-	Some(Identifier {
-		language: tokens[0].to_string(),
-		path: tokens[1].to_string(),
-		start: tokens[2].parse().unwrap_or(0),
-		name: tokens[3].to_string(),
-		parent_kind: if tokens[4].is_empty() { None } else { Some(tokens[4].to_string()) },
-		grandparent_kind: if tokens[5].is_empty() { None } else { Some(tokens[5].to_string()) },
-		great_grandparent_kind: if tokens[6].is_empty() { None } else { Some(tokens[6].to_string()) },
-	})
+fn read_u64<R: Read>(reader: &mut R) -> std::io::Result<u64> {
+    let mut buffer = [0u8; 8];
+    reader.read_exact(&mut buffer)?;
+    Ok(u64::from_le_bytes(buffer))
 }
-
-fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) {
-    let file = File::open(file_path).expect("Failed to open file");
-    let reader = BufReader::new(file);
-    let decoder = BufReader::new(GzDecoder::new(reader)); 
-
-    let mut total_count = 0;
-    let mut filtered_count = 0;
-    let mut unique_identifiers = std::collections::HashSet::new();
-
-    for line in decoder.lines() {
-		if let Ok(line) = line {
-			if let Some(identifier) = parse_identifier(&line) {
-				total_count += 1;
-				if identifier.name.len() >= MIN_LENGTH {
-					filtered_count += 1;
-					let normalized: String = identifier.name.chars()
-						.filter(|c| *c != '_')
-						.map(|c| c.to_ascii_lowercase())
-						.collect();
-					unique_identifiers.insert(normalized);
-				}
-			}
-		} else {
-			break;
-		}
-    }
-
-    (total_count, filtered_count, unique_identifiers.into_iter().collect())
-}
-
-const MIN_LENGTH: usize = 20;
 
 pub fn hash_for_project(
     folder: PathBuf,
     output: &Arc<Mutex<BufWriter<File>>>,
-	bar: &ProgressBar,
+    bar: &ProgressBar,
 ) {
-    let project = folder.file_name().unwrap().to_str().unwrap().to_string();
-
+    let project_name = folder.file_name().unwrap().to_str().unwrap().to_string();
+    
     let bh = BuildHasherDefault::<FnvHasher>::default();
-    let mut hasher = SuperMinHash2::<u64, String, _>::new(1024, bh);
+    let mut hasher = SuperMinHash2::<u64, String, _>::new(NUM_HASHES, bh);
+
+    let mut total_filtered_count: u64 = 0;
+    
+    let mut line_buffer = String::with_capacity(512);
+    let mut norm_buffer = String::with_capacity(128);
 
     let paths = fs::read_dir(&folder).expect("Failed to read directory");
 
-    for (i, path) in paths.enumerate() {
+    for path in paths {
         let path = path.expect("Failed to read path").path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("gz") {
-            let (file_count, file_filtered_count, normalized_identifiers) = process_file_identifiers(&path);
-			bar.inc(1);
-			bar.set_message(format!("{}: Processed file {} ({} total, {} filtered)", project, i + 1, file_count, file_filtered_count));
+            let file = File::open(&path).expect("Failed to open file");
+            let reader = BufReader::with_capacity(64 * 1024, file); 
+            let mut decoder = BufReader::new(GzDecoder::new(reader));
 
-            for identifier in normalized_identifiers {
-                hasher.sketch(&identifier).unwrap();
+            loop {
+                line_buffer.clear();
+                match decoder.read_line(&mut line_buffer) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let mut commas_found = 0;
+                        let mut start_idx = 0;
+                        let mut end_idx = 0;
+                        
+                        for (i, b) in line_buffer.bytes().enumerate() {
+                            if b == b',' {
+                                commas_found += 1;
+                                if commas_found == 3 {
+                                    start_idx = i + 1;
+                                } else if commas_found == 4 {
+                                    end_idx = i;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if commas_found >= 3 {
+                            if commas_found == 3 { end_idx = line_buffer.trim_end().len(); }
+                            
+                            if start_idx < end_idx {
+                                let name_part = &line_buffer[start_idx..end_idx];
+                                
+                                if name_part.len() >= MIN_LENGTH {
+                                    norm_buffer.clear();
+                                    for c in name_part.chars() {
+                                        if c != '_' {
+                                            norm_buffer.push(c.to_ascii_lowercase());
+                                        }
+                                    }
+
+                                    hasher.sketch(&norm_buffer).unwrap();
+                                    total_filtered_count += 1;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
             }
         }
     }
     
+    bar.inc(1);
+    bar.set_message(format!("{}: Processed identifiers", project_name));
+
     let minhash = hasher.get_hsketch();
     
     let mut writer = output.lock().unwrap();
-    writer.write_all(format!("{},{},", project, 0).as_bytes()).unwrap();
-    writer.write_all(
-        &minhash.iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<String>>()
-        .join(",")
-        .as_bytes()
-    ).unwrap();
-    writer.write_all(b"\n").unwrap();
-	writer.flush().unwrap();
+    
+    let name_bytes = project_name.as_bytes();
+    writer.write_all(&(name_bytes.len() as u32).to_le_bytes()).unwrap();
+    writer.write_all(name_bytes).unwrap();
+    writer.write_all(&total_filtered_count.to_le_bytes()).unwrap();
+    writer.write_all(&(minhash.len() as u32).to_le_bytes()).unwrap();
+    for hash in minhash {
+        writer.write_all(&hash.to_le_bytes()).unwrap();
+    }
+    
 }
 
+#[derive(Debug)]
 struct HashData {
-	project: String,
-	size: u64,
-	hashes: Vec<u64>,
+    project: String,
+    size: u64,
+    hashes: Vec<u64>,
 }
 
-fn read_hash_data(
-	file: &str
-) -> Vec<HashData> {
-	let file = File::open(file).expect("Failed to open hashes file");
-	let reader = BufReader::new(file);
-	let mut hash_data_list = Vec::new();
-	for line in reader.lines() {
-		let line = line.expect("Failed to read line");
-		let tokens: Vec<&str> = line.split(',').collect();
-		if tokens.len() < 3 {
-			continue;
-		}
-		let project = tokens[0].to_string();
-		let size = tokens[1].parse::<u64>().unwrap_or(0);
-		let hashes: Vec<u64> = tokens[2..]
-			.iter()
-			.filter(|s| !s.is_empty())
-			.filter_map(|s| match s.parse::<u64>() {
-				Ok(value) => Some(value),
-				Err(_) => {
-					eprintln!("Failed to parse '{}' as u64", s);
-					None
-				}
-			})
-			.collect();
-		hash_data_list.push(HashData {
-			project,
-			size,
-			hashes,
-		});
-	}
-	hash_data_list
+fn read_hash_data(file_path: &str) -> Vec<HashData> {
+    let file = File::open(file_path).expect("Failed to open binary hashes file");
+    let mut reader = BufReader::with_capacity(1024 * 1024, file);
+    let mut data = Vec::new();
+
+    loop {
+        let name_len = match read_u32(&mut reader) {
+            Ok(n) => n,
+            Err(_) => break,
+        };
+
+        let mut name_buffer = vec![0u8; name_len as usize];
+        if reader.read_exact(&mut name_buffer).is_err() { break; }
+        let project = String::from_utf8_lossy(&name_buffer).to_string();
+
+        let size = match read_u64(&mut reader) {
+            Ok(s) => s,
+            Err(_) => break,
+        };
+
+        let hash_count = match read_u32(&mut reader) {
+            Ok(c) => c,
+            Err(_) => break,
+        };
+
+        let mut hashes = Vec::with_capacity(hash_count as usize);
+        for _ in 0..hash_count {
+             match read_u64(&mut reader) {
+                Ok(h) => hashes.push(h),
+                Err(_) => break,
+            }
+        }
+
+        data.push(HashData {
+            project,
+            size,
+            hashes,
+        });
+    }
+
+    data
 }
-
-// fn compare_identifiers(
-// 	from: &str,
-// 	to: &str,
-// ) -> f64 {
-// 	let from_identifiers = read_identifiers_in_folder(from);
-// 	let to_identifiers = read_identifiers_in_folder(to);
-
-// 	let from_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(from_identifiers)).into_iter().collect();
-// 	let to_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(to_identifiers)).into_iter().collect();
-
-// 	let intersection: usize = from_set.intersection(&to_set).count();
-// 	let union: usize = from_set.union(&to_set).count();
-
-// 	let jaccard_index = if union == 0 {
-// 		0.0
-// 	} else {
-// 		intersection as f64 / union as f64
-// 	};
-
-// 	jaccard_index
-// }
 
 pub fn find_most_similar(
-	results_file: &str,
-	name: &str,
+    results_file: &str,
+    name: &str,
 ) {
-	let hash_data_list = read_hash_data(results_file);
-	let from: Option<&HashData> = hash_data_list.iter()
-		.find(|hd| hd.project == name);
+    println!("Loading binary data...");
+    let hash_data_list = read_hash_data(results_file);
+    
+    let from: Option<&HashData> = hash_data_list.iter()
+        .find(|hd| hd.project == name);
 
-	if from.is_none() {
-		println!("Project {} not found in hash data.", name);
-		return;
-	}
-	let item = from.unwrap();
+    if from.is_none() {
+        println!("Project {} not found in hash data.", name);
+        return;
+    }
+    let item = from.unwrap();
 
+    let mut results = Vec::with_capacity(hash_data_list.len());
+    
+    for hash_data in &hash_data_list {
+        if hash_data.project == name { continue; }
 
-	let mut results = Vec::new();
-	for hash_data in &hash_data_list {
-		let similarity = get_jaccard_index_estimate(
-			&hash_data.hashes,
-			&item.hashes,
-		).unwrap();
-		results.push((similarity, hash_data));
-	}
+        let similarity = get_jaccard_index_estimate(
+            &hash_data.hashes,
+            &item.hashes,
+        ).unwrap_or(0.0);
+        
+        results.push((similarity, hash_data));
+    }
 
-	results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-	println!("Most similar to {} (with {} symbols):", item.project, item.size);
-	for (i, (similarity, hash_data)) in results.iter().take(50).enumerate() {
-		println!(
-			"  {}. {} - Hash similarity: {:.4}",
-			i + 1,
-			hash_data.project,
-			similarity,
-		);
-	}
+    results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    println!("Most similar to {} (processed {} items):", item.project, item.size);
+    for (i, (similarity, hash_data)) in results.iter().take(50).enumerate() {
+        println!(
+            "  {}. {} - Similarity: {:.4} (Size: {})",
+            i + 1,
+            hash_data.project,
+            similarity,
+            hash_data.size
+        );
+    }
 }
