@@ -498,8 +498,6 @@ pub fn run_symbols_hash_pipeline(
 	input: &str,
 	output: &str,
 ) {
-	let folders = fs::read_dir(input).expect("Failed to read input directory");
-
 	if Path::new(output).exists() {
 		fs::remove_file(output).expect("Failed to clear output file");
 	}
@@ -517,7 +515,7 @@ pub fn run_symbols_hash_pipeline(
     bar.set_style(
         ProgressStyle::default_bar()
             .template(
-                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
             )
             .expect("Failed to create template")
             .progress_chars("#>-"),
