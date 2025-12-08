@@ -31,85 +31,91 @@ fn parse_identifier(line: &str) -> Option<Identifier> {
 	})
 }
 
-fn get_file_identifiers(file_path: &PathBuf) -> Vec<Identifier> {
+fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) {
     let file = File::open(file_path).expect("Failed to open file");
     let reader = BufReader::new(file);
-    let decoder = BufReader::new(GzDecoder::new(reader));
+    let decoder = BufReader::new(GzDecoder::new(reader)); 
 
-    decoder.lines()
-        .filter_map(|line| line.ok().and_then(|l| parse_identifier(&l)))
-        .collect()
+    let mut total_count = 0;
+    let mut filtered_count = 0;
+    let mut unique_identifiers = std::collections::HashSet::new();
+
+    for line in decoder.lines().filter_map(|line| line.ok()) {
+        if let Some(identifier) = parse_identifier(&line) {
+            total_count += 1;
+            if identifier.name.len() >= MIN_LENGTH {
+                filtered_count += 1;
+                let normalized: String = identifier.name.chars()
+                    .filter(|c| *c != '_')
+                    .map(|c| c.to_ascii_lowercase())
+                    .collect();
+                unique_identifiers.insert(normalized);
+            }
+        }
+    }
+
+    (total_count, filtered_count, unique_identifiers.into_iter().collect())
 }
 
 const MIN_LENGTH: usize = 5;
-
-fn filter_identifiers(identifiers: Vec<Identifier>) -> Vec<Identifier> {
-	identifiers.into_iter()
-		.filter(|id| id.name.len() >= MIN_LENGTH)
-		.collect()
-}
-
-fn normalize_and_deduplicate_identifiers(identifiers: Vec<Identifier>) -> Vec<String> {
-	let mut unique_identifiers = std::collections::HashSet::new();
-
-	for identifier in identifiers {
-		let normalized: String = identifier.name.chars()
-            .filter(|c| *c != '_')
-            .map(|c| c.to_ascii_lowercase())
-            .collect();
-		unique_identifiers.insert(normalized);
-	}
-
-	unique_identifiers.into_iter().collect()
-}
-
 pub fn hash_for_project(
-	folder: PathBuf,
-	output: String
+    folder: PathBuf,
+    output: String
 ) {
-	let project = folder.file_name().unwrap().to_str().unwrap().to_string();
+    let project = folder.file_name().unwrap().to_str().unwrap().to_string();
 
-	let read_start_time = std::time::Instant::now();
-	let identifiers = read_identifiers_in_folder(folder.to_str().unwrap());
-	let read_duration = read_start_time.elapsed();
-	let identifiers_count = identifiers.len();
-	println!("[{}] Read {} identifiers in {} ms.", project, identifiers_count, read_duration.as_millis());
+    let bh = BuildHasherDefault::<FnvHasher>::default();
+    let mut hasher = SuperMinHash2::<u64, String, _>::new(1024, bh);
+    
+    let mut total_identifiers_count = 0;
+    let mut total_filtered_count = 0;
+    let mut total_symbol_count = 0;
 
-	let identifiers_count = identifiers.len();
-	let filter_start_time = std::time::Instant::now();
-	let filtered_identifiers = filter_identifiers(identifiers);
-	let filtered_count = filtered_identifiers.len();
-	let normalized_identifiers = normalize_and_deduplicate_identifiers(filtered_identifiers);
-	let filter_duration = filter_start_time.elapsed();
-	let symbol_count = normalized_identifiers.len();
-	
-	let hash_start_time = std::time::Instant::now();
-	let bh = BuildHasherDefault::<FnvHasher>::default();
-	let mut hasher = SuperMinHash2::<u64, String, _>::new(1024, bh);
-	for identifier in normalized_identifiers {
-		hasher.sketch(&identifier).unwrap();
-	}
-	let minhash = hasher.get_hsketch();
-	let hash_duration = hash_start_time.elapsed();
+    let read_start_time = std::time::Instant::now();
+    let paths = fs::read_dir(&folder).expect("Failed to read directory");
 
-	let write_start_time = std::time::Instant::now();
-	let mut writer = fs::OpenOptions::new()
-	.append(true)
-	.create(true)
-	.open(&output)
-	.unwrap();
-	writer.write_all(format!("{},{},", project, symbol_count).as_bytes()).unwrap();
-	writer.write_all(
-		&minhash.iter()
-		.map(|v| v.to_string())
-		.collect::<Vec<String>>()
-		.join(",")
-		.as_bytes()
-	).unwrap();
-	writer.write_all(b"\n").unwrap();
-	let write_duration = write_start_time.elapsed();
+    for path in paths {
+        let path = path.expect("Failed to read path").path();
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("gz") {
+            let (file_count, file_filtered_count, normalized_identifiers) = process_file_identifiers(&path);
+            
+            total_identifiers_count += file_count;
+            total_filtered_count += file_filtered_count;
+            total_symbol_count += normalized_identifiers.len();
 
-	println!("[{}] {} -> {} -> {} symbols in {} ms, hashed in {} ms, wrote result in {} ms.", project, identifiers_count, filtered_count, symbol_count, filter_duration.as_millis(), hash_duration.as_millis(), write_duration.as_millis());
+            for identifier in normalized_identifiers {
+                hasher.sketch(&identifier).unwrap();
+            }
+        }
+    }
+    let read_duration = read_start_time.elapsed();
+    println!("[{}] Read {} identifiers in {} ms.", project, total_identifiers_count, read_duration.as_millis());
+    
+    let minhash = hasher.get_hsketch();
+    
+    let write_start_time = std::time::Instant::now();
+    let mut writer = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&output)
+    .unwrap();
+    writer.write_all(format!("{},{},", project, total_symbol_count).as_bytes()).unwrap();
+    writer.write_all(
+        &minhash.iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+        .as_bytes()
+    ).unwrap();
+    writer.write_all(b"\n").unwrap();
+    let write_duration = write_start_time.elapsed();
+
+    println!("[{}] {} -> {} -> {} symbols (total) processed and hashed, wrote result in {} ms.", 
+             project, 
+             total_identifiers_count, 
+             total_filtered_count, 
+             total_symbol_count, 
+             write_duration.as_millis());
 }
 
 struct HashData {
@@ -146,40 +152,27 @@ fn read_hash_data(
 	hash_data_list
 }
 
-fn read_identifiers_in_folder(folder: &str) -> Vec<Identifier> {
-	let mut identifiers = Vec::new();
-	let paths = fs::read_dir(folder).expect("Failed to read directory");
-	for path in paths {
-		let path = path.expect("Failed to read path").path();
-		if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("gz") {
-			let mut file_identifiers = get_file_identifiers(&path);
-			identifiers.append(&mut file_identifiers);
-		}
-	}
-	identifiers
-}
+// fn compare_identifiers(
+// 	from: &str,
+// 	to: &str,
+// ) -> f64 {
+// 	let from_identifiers = read_identifiers_in_folder(from);
+// 	let to_identifiers = read_identifiers_in_folder(to);
 
-fn compare_identifiers(
-	from: &str,
-	to: &str,
-) -> f64 {
-	let from_identifiers = read_identifiers_in_folder(from);
-	let to_identifiers = read_identifiers_in_folder(to);
+// 	let from_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(from_identifiers)).into_iter().collect();
+// 	let to_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(to_identifiers)).into_iter().collect();
 
-	let from_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(from_identifiers)).into_iter().collect();
-	let to_set: HashSet<String> = normalize_and_deduplicate_identifiers(filter_identifiers(to_identifiers)).into_iter().collect();
+// 	let intersection: usize = from_set.intersection(&to_set).count();
+// 	let union: usize = from_set.union(&to_set).count();
 
-	let intersection: usize = from_set.intersection(&to_set).count();
-	let union: usize = from_set.union(&to_set).count();
+// 	let jaccard_index = if union == 0 {
+// 		0.0
+// 	} else {
+// 		intersection as f64 / union as f64
+// 	};
 
-	let jaccard_index = if union == 0 {
-		0.0
-	} else {
-		intersection as f64 / union as f64
-	};
-
-	jaccard_index
-}
+// 	jaccard_index
+// }
 
 pub fn find_most_similar(
 	results_file: &str,

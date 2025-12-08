@@ -496,25 +496,19 @@ pub fn run_symbols_hash_pipeline(
 	input: &str,
 	output: &str,
 ) {
-	let folders: Vec<_> = fs::read_dir(input)
-		.expect("Failed to read input directory")
-		.collect();
+	let folders = fs::read_dir(input).expect("Failed to read input directory");
 
 	if Path::new(output).exists() {
 		fs::remove_file(output).expect("Failed to clear output file");
 	}
 
-	let length = folders.len();
-	let mut i = 0;
-	for dir in &folders {
-		let dir = dir.as_ref().expect("Failed to read directory").path();
+	folders.into_iter().par_bridge().for_each(|dir| {
+		let dir = dir.expect("Failed to read directory").path();
 		if dir.is_dir() {
 			hash::hash_for_project(
 				dir,
 				output.to_string()
 			);
 		}
-		println!("Processed {}/{} folders.", i + 1, length);
-		i += 1;
-	}
+	});
 }
