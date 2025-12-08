@@ -250,6 +250,11 @@ pub fn run_symbols_for_repo(
 		return Ok(0);
 	}
 
+	if repo.size > 5_000_000 {
+		eprintln!("[{}] Repository too large ({} KB), skipping.", repo_name, repo.size);
+		return Err(SymbolsError::CloneError);
+	}
+
 	if Path::new(&temp_folder).exists() {
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
