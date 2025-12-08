@@ -122,6 +122,13 @@ enum Commands {
             default_value = "results/symbols_hash.bin",
         )]
         input: String,
+
+        #[arg(
+            long,
+            help = "Results folder path",
+            default_value = "results/symbols",
+        )]
+        results: String,
     }
 }
 
@@ -308,8 +315,8 @@ async fn main() {
         Some(Commands::SymbolsHash { input, output }) => {
             pipeline::run_symbols_hash_pipeline(input, output); 
         }
-        Some(Commands::SymbolsCompare { from, input }) => {
-            hash::find_most_similar(input, from);
+        Some(Commands::SymbolsCompare { from, input, results }) => {
+            hash::find_most_similar(input, results, from);
         }
     }
 }
