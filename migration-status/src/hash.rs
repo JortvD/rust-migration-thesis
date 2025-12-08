@@ -223,7 +223,7 @@ pub fn find_most_similar(
     println!("Most similar to {} (processed {} items):", item.project, item.size);
 	let from_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, item.project)), true);
 	let mut similar = Vec::new();
-    for (i, (similarity, hash_data)) in results.iter().take(100).enumerate() {
+    for (i, (similarity, hash_data)) in results.iter().take(250).enumerate() {
 		let to_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, hash_data.project)), false);
 		let common: HashSet<_> = from_identifiers.intersection(&to_identifiers).collect();
 		let common_count = common.len();
