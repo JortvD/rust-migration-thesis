@@ -272,9 +272,13 @@ pub fn extensive_extract_symbols_for_language(
     source: &str,
     out: &mut HashSet<Box<SymbolData>>,
 ) {
+    parser.set_timeout_micros(5_000_000);
     let tree = match parser.parse(&source, None) {
         Some(t) => t,
-        None => return,
+        None => {
+            parser.reset();
+            return;
+        }
     };
 
     let mut stack = Vec::with_capacity(64);
@@ -336,9 +340,10 @@ pub fn extensive_extract_symbols_for_file(
 
     let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
 
-    if (lang == SupportedLanguage::Cpp || lang == SupportedLanguage::C) && src.len() > 200_000 {
-        return Ok(false);
-    }
+    // println!("Extracting for: {:?}, size: {}, language: {:?}", path, src.len(), lang);
+    // if (lang == SupportedLanguage::Cpp || lang == SupportedLanguage::C) && src.len() > 200_000 {
+    //     return Ok(false);
+    // }
     extensive_extract_symbols_for_language(parser, relative_path, lang, &src, out_set);
 
     Ok(true)
