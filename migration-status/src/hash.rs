@@ -171,33 +171,33 @@ pub fn find_most_similar(
 	name: &str,
 ) {
 	let hash_data_list = read_hash_data(results_file);
-	let from = hash_data_list.iter()
-		.filter(|hd| hd.project == name);
+	let from: Option<&HashData> = hash_data_list.iter()
+		.find(|hd| hd.project == name);
 
-	for item in from {
-		let mut results = Vec::new();
-		for hash_data in &hash_data_list {
-			let similarity = get_jaccard_index_estimate(
-				&hash_data.hashes,
-				&item.hashes,
-			).unwrap();
-			results.push((similarity, hash_data));
-		}
+	if from.is_none() {
+		println!("Project {} not found in hash data.", name);
+		return;
+	}
+	let item = from.unwrap();
 
-		results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-		println!("Most similar to {} (with {} symbols):", item.project, item.size);
-		for (i, (similarity, hash_data)) in results.iter().take(10).enumerate() {
-			// let exact_similarity = compare_identifiers(
-			// 	&format!("results/symbols/{}", item.project),
-			// 	&format!("results/symbols/{}", hash_data.project),
-			// );
-			println!(
-				"  {}. {} - Hash similarity: {:.4} from {} symbols.",
-				i + 1,
-				hash_data.project,
-				similarity,
-				hash_data.size
-			);
-		}
+
+	let mut results = Vec::new();
+	for hash_data in &hash_data_list {
+		let similarity = get_jaccard_index_estimate(
+			&hash_data.hashes,
+			&item.hashes,
+		).unwrap();
+		results.push((similarity, hash_data));
+	}
+
+	results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+	println!("Most similar to {} (with {} symbols):", item.project, item.size);
+	for (i, (similarity, hash_data)) in results.iter().take(50).enumerate() {
+		println!(
+			"  {}. {} - Hash similarity: {:.4}",
+			i + 1,
+			hash_data.project,
+			similarity,
+		);
 	}
 }
