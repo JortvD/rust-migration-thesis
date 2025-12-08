@@ -1,7 +1,8 @@
-use std::{collections::HashSet, fs, io::Write, path::Path};
+use std::{collections::HashSet, fs, io::{BufRead, Write}, path::Path};
 
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
+use probminhash::superminhasher2::get_jaccard_index_estimate;
 use rayon::ThreadPoolBuilder;
 
 #[cfg(feature = "dhat-heap")]
@@ -15,6 +16,7 @@ mod analyze;
 mod pipeline;
 mod consts;
 mod math;
+mod hash;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -95,7 +97,55 @@ enum Commands {
             default_value = "250",
         )]
         min_stars: u32,
+    },
+    SymbolsHash {
+        #[arg(
+            long,
+            help = "Input folder path",
+            default_value = "results/symbols",
+        )]
+        input: String,
+        
+        #[arg(
+            long,
+            help = "Output CSV path",
+            default_value = "results/symbols_hash.csv",
+        )]
+        output: String,
+    },
+    SymbolsCompare {
+        from: String,
+
+        #[arg(
+            long,
+            help = "Input CSV file path",
+            default_value = "results/symbols_hash.csv",
+        )]
+        input: String,
     }
+}
+
+fn read_hashes(input: &str, repo_name: &str) -> Result<Vec<u64>, std::io::Error> {
+    let file = fs::File::open(input)?;
+    let reader = std::io::BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line?;
+        let tokens: Vec<&str> = line.split(',').collect();
+        if tokens.len() > 1 && tokens[0] == repo_name {
+            let hashes: Vec<u64> = tokens[2..]
+                .iter()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.parse::<u64>().unwrap())
+                .collect();
+            return Ok(hashes);
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        format!("Repository {} not found in input file", repo_name),
+    ))
 }
 
 #[tokio::main]
@@ -278,6 +328,12 @@ async fn main() {
             }, &output).unwrap_or_else(|e| {
                 eprintln!("Error running symbols for repo: {:?}", e);
             });
+        }
+        Some(Commands::SymbolsHash { input, output }) => {
+            pipeline::run_symbols_hash_pipeline(input, output); 
+        }
+        Some(Commands::SymbolsCompare { from, input }) => {
+            hash::find_most_similar(input, from);
         }
     }
 }

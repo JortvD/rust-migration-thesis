@@ -1,21 +1,18 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use std::hash::Hash;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use octocrab::models::Repository;
 use rayon::prelude::*;
 
 use crate::code;
 use crate::code::SupportedLanguage;
 use crate::code::SymbolData;
-use crate::gather;
-use crate::analyze;
+use crate::hash;
 
 fn filter_unique_repos(
 	repos: Vec<(String, u32, f64)>,
@@ -493,4 +490,23 @@ pub async fn run_symbols_collect_pipeline(
 
 		tokio::time::sleep(std::time::Duration::from_secs(6)).await;
 	}
+}
+
+
+pub fn run_symbols_hash_pipeline(
+	input: &str,
+	output: &str,
+) {
+	let symbols_files: Vec<_> = glob::glob(&format!("{}/**/symbols_*.csv.gz", input))
+		.expect("Failed to read glob pattern")
+		.filter_map(Result::ok)
+		.collect();
+
+	if Path::new(output).exists() {
+		fs::remove_file(output).expect("Failed to clear output file");
+	}
+
+	symbols_files.into_iter().par_bridge().for_each(|file_path| {
+		hash::hash_symbols_file(file_path, output.to_string());
+	});
 }
