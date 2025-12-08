@@ -69,10 +69,24 @@ enum Commands {
             default_value = "results/all_repositories.csv",
         )]
         input: String,
+
+        #[arg(
+            long,
+            help = "Output folder path",
+            default_value = "results/symbols",
+        )]
+        output: String,
     },
     SymbolsSingle {
         name: String,
         main_branch: String,
+
+        #[arg(
+            long,
+            help = "Output folder path",
+            default_value = "results/symbols",
+        )]
+        output: String,
     },
     SymbolsCollect {
         #[arg(
@@ -241,15 +255,15 @@ async fn main() {
             }
             pipeline::clean_temp_dir(&temp_dir);
         }
-        Some(Commands::Symbols { input }) => {
-            pipeline::run_symbols_pipeline(input);
+        Some(Commands::Symbols { input, output }) => {
+            pipeline::run_symbols_pipeline(input, output);
         }
         Some(Commands::SymbolsCollect {
             min_stars
         }) => {
             pipeline::run_symbols_collect_pipeline(&min_stars).await;
         }
-        Some(Commands::SymbolsSingle { name, main_branch }) => {
+        Some(Commands::SymbolsSingle { name, main_branch, output }) => {
             pipeline::run_symbols_for_repo(&pipeline::Repo {
                 name: name.clone(),
                 main_branch: main_branch.clone(),
@@ -261,7 +275,7 @@ async fn main() {
                 updated_at: chrono::Utc::now(),
                 language: "".to_string(),
                 license: "".to_string(),
-            }).unwrap_or_else(|e| {
+            }, &output).unwrap_or_else(|e| {
                 eprintln!("Error running symbols for repo: {:?}", e);
             });
         }

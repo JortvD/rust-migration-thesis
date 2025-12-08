@@ -227,11 +227,12 @@ fn os_thread_id() -> libc::pid_t {
 }
 
 pub fn run_symbols_for_repo(
-	repo: &Repo
+	repo: &Repo,
+	output: &str
 ) -> Result<(), SymbolsError> {
 	let repo_name = repo.name.replace("/", "_");
 	let temp_folder = format!("temp_symbols/{}", repo_name);
-	let results_folder = format!("results/symbols/{}", repo_name);
+	let results_folder = format!("{}/{}", output, repo_name);
 	let metadata_path = format!("{}/metadata.txt", results_folder);
 
 	if Path::new(&metadata_path).exists() {
@@ -357,6 +358,7 @@ pub struct Repo {
 
 pub fn run_symbols_pipeline(
 	input: &str,
+	output: &str,
 ) {
 	let repositories = csv::Reader::from_path(input)
 		.expect("Failed to open repositories CSV file")
@@ -393,7 +395,7 @@ pub fn run_symbols_pipeline(
 
 
 	unique_repos.iter().par_bridge().for_each(|repo| {
-		match run_symbols_for_repo(repo) {
+		match run_symbols_for_repo(repo, output) {
 			Ok(()) => {},
 			Err(e) => {
 				eprintln!("Error processing repository {}: {:?}", repo.name, e);
