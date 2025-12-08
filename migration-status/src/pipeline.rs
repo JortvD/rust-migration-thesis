@@ -414,7 +414,7 @@ pub fn run_symbols_pipeline(
 		pb.set_style(
 			ProgressStyle::default_spinner()
 				.template(
-					"[{elapsed_precise}] [Thread {thread_id}] {spinner} {msg}"
+					&format!("[{{elapsed_precise}}] [Thread {}] {{spinner}} {{msg}}", thread)
 				)
 				.expect("Failed to create template")
 				.tick_chars("/|\\- "),
@@ -565,7 +565,7 @@ pub fn run_symbols_hash_pipeline(
 		pb.set_style(
 			ProgressStyle::default_spinner()
 				.template(
-					"[{elapsed_precise}] [Thread {thread_id}] {spinner} {msg}"
+					&format!("[{{elapsed_precise}}] [Thread {}] {{spinner}} {{msg}}", thread)
 				)
 				.expect("Failed to create template")
 				.tick_chars("/|\\- "),
