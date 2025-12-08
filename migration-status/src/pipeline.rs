@@ -492,21 +492,23 @@ pub async fn run_symbols_collect_pipeline(
 	}
 }
 
-
 pub fn run_symbols_hash_pipeline(
 	input: &str,
 	output: &str,
 ) {
-	let symbols_files: Vec<_> = glob::glob(&format!("{}/**/symbols_*.csv.gz", input))
-		.expect("Failed to read glob pattern")
-		.filter_map(Result::ok)
-		.collect();
+	let folders = fs::read_dir(input).expect("Failed to read input directory");
 
 	if Path::new(output).exists() {
 		fs::remove_file(output).expect("Failed to clear output file");
 	}
 
-	symbols_files.into_iter().par_bridge().for_each(|file_path| {
-		hash::hash_symbols_file(file_path, output.to_string());
+	folders.into_iter().par_bridge().for_each(|dir| {
+		let dir = dir.expect("Failed to read directory").path();
+		if dir.is_dir() {
+			hash::hash_for_project(
+				dir,
+				output.to_string()
+			);
+		}
 	});
 }
