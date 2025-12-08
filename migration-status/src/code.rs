@@ -4,10 +4,9 @@ use std::fs;
 use std::path::Path;
 use std::io::Read;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use tokei::LanguageType;
-use tree_sitter::{Language, Node, ParseOptions, Parser, Point};
+use tree_sitter::{Language, Node, Parser};
 use walkdir::WalkDir;
 
 use crate::pipeline::SymbolsError;
@@ -273,20 +272,7 @@ pub fn extensive_extract_symbols_for_language(
     source: &str,
     out: &mut HashSet<Box<SymbolData>>,
 ) {
-    let start_time = std::time::Instant::now();
-    let timeout_duration = Duration::from_secs(5);
-    let mut read_callback = |offset: usize, _position: Point| {
-        if offset < source.len() {
-            &source.as_bytes()[offset..]
-        } else {
-            &[]
-        }
-    };
-    let tree = match parser.parse_with_options(&mut read_callback, None, Some(ParseOptions {
-        progress_callback: Some(&mut |_| {
-            start_time.elapsed() > timeout_duration
-        })
-    })) {
+    let tree = match parser.parse(&source, None) {
         Some(t) => t,
         None => return,
     };
@@ -350,6 +336,9 @@ pub fn extensive_extract_symbols_for_file(
 
     let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
 
+    if (lang == SupportedLanguage::Cpp || lang == SupportedLanguage::C) && src.len() > 200_000 {
+        return Ok(false);
+    }
     extensive_extract_symbols_for_language(parser, relative_path, lang, &src, out_set);
 
     Ok(true)
