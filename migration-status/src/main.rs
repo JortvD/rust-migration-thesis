@@ -325,9 +325,7 @@ async fn main() {
                 updated_at: chrono::Utc::now(),
                 language: "".to_string(),
                 license: "".to_string(),
-            }, &output).unwrap_or_else(|e| {
-                eprintln!("Error running symbols for repo: {:?}", e);
-            });
+            }, &output).unwrap();
         }
         Some(Commands::SymbolsHash { input, output }) => {
             pipeline::run_symbols_hash_pipeline(input, output); 
