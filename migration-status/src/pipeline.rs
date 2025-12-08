@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 
 use rayon::prelude::*;
 
@@ -238,7 +238,8 @@ fn os_thread_id() -> libc::pid_t {
 
 pub fn run_symbols_for_repo(
 	repo: &Repo,
-	output: &str
+	output: &str,
+	bar: &ProgressBar,
 ) -> Result<usize, SymbolsError> {
 	let repo_name = repo.name.replace("/", "_");
 	let temp_folder = format!("temp_symbols/{}", repo_name);
@@ -253,6 +254,7 @@ pub fn run_symbols_for_repo(
 		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
 	}
 
+	bar.set_message(format!("{}: Cloning", repo_name));
 	let branch = &repo.main_branch;
 
 	//let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
@@ -314,6 +316,8 @@ pub fn run_symbols_for_repo(
 			.write_all(result_str.as_bytes())
 			.map_err(|_| SymbolsError::ResultsWriteError)?;
 		encoder.finish().map_err(|_| SymbolsError::ResultsWriteError)?;
+		bar.inc(1);
+		bar.set_message(format!("{}: Gathered symbols batch {} ({} symbols)", repo_name, index + 1, total_symbols));
 
 		Ok(())
 	}).map_err(|_| SymbolsError::SymbolsGatherError)?;
@@ -340,15 +344,7 @@ pub fn run_symbols_for_repo(
 			total_symbols
 		).as_bytes())
 		.map_err(|_| SymbolsError::ResultsWriteError)?; 
-	// println!(
-	// 	"[{}][{}] Cloned {} in {:.2?}, gathered and wrote results in {:.2?} (total symbols: {})",
-	// 	repo.stars,
-	// 	repo.name,
-	// 	branch,
-	// 	clone_duration,
-	// 	gather_duration,
-	// 	total_symbols,
-	// );
+	bar.set_message(format!("{}: Completed analysis ({} symbols)", repo_name, total_symbols));
 
 	Ok(total_symbols)
 }
@@ -401,22 +397,39 @@ pub fn run_symbols_pipeline(
 		}
 	}
 
-	let bar = ProgressBar::new(unique_repos.len() as u64);
-    bar.set_style(
+	let mp = MultiProgress::new();
+	let overall_bar = mp.add(ProgressBar::new(unique_repos.len() as u64));
+    overall_bar.set_style(
         ProgressStyle::default_bar()
             .template(
-                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta})"
             )
             .expect("Failed to create template")
             .progress_chars("#>-"),
     );
+	
+	let mut handles: HashMap<usize, ProgressBar> = HashMap::new();
+	for thread in 0..rayon::current_num_threads() {
+		let pb = mp.add(ProgressBar::new(0));
+		pb.set_style(
+			ProgressStyle::default_spinner()
+				.template(
+					"[{elapsed_precise}] [Thread {thread_id}] {spinner} {msg}"
+				)
+				.expect("Failed to create template")
+				.tick_chars("/|\\- "),
+		);
+		pb.set_message("Starting...");
+		handles.insert(thread, pb);
+	}
 
 	unique_repos.sort_by(|a, b| b.stars.cmp(&a.stars));
 	unique_repos.iter().par_bridge().for_each(|repo| {
-		match run_symbols_for_repo(repo, output) {
+		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
+		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
+		match run_symbols_for_repo(repo, output, bar) {
 			Ok(n) => {
-				bar.set_message(format!("Collected {} symbols for {}", n, repo.name));
-				bar.inc(1);
+				overall_bar.inc(1);
 			},
 			Err(e) => {
 				eprintln!("Error processing repository {}: {:?}", repo.name, e);
@@ -425,7 +438,7 @@ pub fn run_symbols_pipeline(
 		fs::remove_dir_all(format!("temp_symbols/{}", repo.name.replace("/", "_"))).unwrap_or(());
 	});
 
-	bar.finish_with_message("Collection completed.");
+	overall_bar.finish_with_message("Collection completed.");
 }
 
 pub async fn run_symbols_collect_pipeline(
@@ -535,23 +548,38 @@ pub fn run_symbols_hash_pipeline(
         .collect();
 
 	let total_size = folders.len();
-	let bar = ProgressBar::new(total_size as u64);
-    bar.set_style(
+	let mp = MultiProgress::new();
+	let overall_bar = mp.add(ProgressBar::new(total_size as u64));
+    overall_bar.set_style(
         ProgressStyle::default_bar()
             .template(
-                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta})"
             )
             .expect("Failed to create template")
             .progress_chars("#>-"),
     );
+
+	let mut handles: HashMap<usize, ProgressBar> = HashMap::new();
+	for thread in 0..rayon::current_num_threads() {
+		let pb = mp.add(ProgressBar::new(0));
+		pb.set_style(
+			ProgressStyle::default_spinner()
+				.template(
+					"[{elapsed_precise}] [Thread {thread_id}] {spinner} {msg}"
+				)
+				.expect("Failed to create template")
+				.tick_chars("/|\\- "),
+		);
+		pb.set_message("Starting...");
+		handles.insert(thread, pb);
+	}
 	
 	folders.par_iter().for_each(|dir| {
-		let start_time = std::time::Instant::now();
-		hash::hash_for_project(dir.to_path_buf(), output.to_string());
-		let name = dir.file_name().unwrap().to_str().unwrap().to_string();
-    	bar.set_message(format!("Hashed {} in {} ms", name, start_time.elapsed().as_millis()));
-		bar.inc(1);
+		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
+		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
+		hash::hash_for_project(dir.to_path_buf(), output.to_string(), bar);
+		overall_bar.inc(1);
 	});
 
-	bar.finish_with_message("Hashing completed.");
+	overall_bar.finish_with_message("Hashing completed.");
 }

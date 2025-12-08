@@ -291,6 +291,7 @@ async fn main() {
             pipeline::run_symbols_collect_pipeline(&min_stars).await;
         }
         Some(Commands::SymbolsSingle { name, main_branch, output }) => {
+            let pb = indicatif::ProgressBar::new(100);
             pipeline::run_symbols_for_repo(&pipeline::Repo {
                 name: name.clone(),
                 main_branch: main_branch.clone(),
@@ -302,7 +303,7 @@ async fn main() {
                 updated_at: chrono::Utc::now(),
                 language: "".to_string(),
                 license: "".to_string(),
-            }, &output).unwrap();
+            }, &output, &pb).unwrap();
         }
         Some(Commands::SymbolsHash { input, output }) => {
             pipeline::run_symbols_hash_pipeline(input, output); 

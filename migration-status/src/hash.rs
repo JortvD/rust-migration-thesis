@@ -3,6 +3,7 @@ use std::{collections::HashSet, fs::{self, File}, hash::BuildHasherDefault, io::
 use flate2::bufread::GzDecoder;
 use fnv::FnvHasher;
 use probminhash::superminhasher2::{SuperMinHash2, get_jaccard_index_estimate};
+use indicatif::ProgressBar;
 
 #[derive(Clone)]
 struct Identifier {
@@ -61,7 +62,8 @@ const MIN_LENGTH: usize = 5;
 
 pub fn hash_for_project(
     folder: PathBuf,
-    output: String
+    output: String,
+	bar: &ProgressBar,
 ) {
     let project = folder.file_name().unwrap().to_str().unwrap().to_string();
 
@@ -74,10 +76,8 @@ pub fn hash_for_project(
         let path = path.expect("Failed to read path").path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("gz") {
             let (file_count, file_filtered_count, normalized_identifiers) = process_file_identifiers(&path);
-
-			if i > 50 {
-				println!("for {} processed {} files...", project, i + 1);
-			}
+			bar.inc(1);
+			bar.set_message(format!("{}: Processed file {} ({} total, {} filtered)", project, i + 1, file_count, file_filtered_count));
 
             for identifier in normalized_identifiers {
                 hasher.sketch(&identifier).unwrap();
