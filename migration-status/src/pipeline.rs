@@ -86,19 +86,28 @@ pub fn run_analysis_pipeline(
 	// repos = repos.iter().take(10).cloned().collect();
 
 	let total_repos = repos.len();
-	let i = Arc::new(AtomicUsize::new(0));
+	let bar = ProgressBar::new(total_repos as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+            )
+            .expect("Failed to create template")
+            .progress_chars("#>-"),
+    );
 
 	repos.iter().par_bridge().for_each(|(full_name, stars, rust_percentage)| {
-		let current_index = i.fetch_add(1, atomic::Ordering::SeqCst);
-		println!(
-			"[{}/{}] Analyzing repository: {} ({} stars, {:.2}% Rust)",
-			current_index + 1,
-			total_repos,
-			full_name,
-			stars,
-			rust_percentage
-		);
+		// let current_index = i.fetch_add(1, atomic::Ordering::SeqCst);
+		// println!(
+		// 	"[{}/{}] Analyzing repository: {} ({} stars, {:.2}% Rust)",
+		// 	current_index + 1,
+		// 	total_repos,
+		// 	full_name,
+		// 	stars,
+		// 	rust_percentage
+		// );
 
+		let start_time = std::time::Instant::now();
 		let status = std::process::Command::new("./target/release/migration-status")
 			.args(&["single", full_name, &output_dir])
 			.status()
@@ -107,8 +116,10 @@ pub fn run_analysis_pipeline(
 		if !status.success() {
 			eprintln!("Failed to analyze repository: {}", full_name);
 		}
+		bar.inc(1);
+		bar.set_message(format!("Analyzed {} ({} stars, {:.2}% Rust) in {} ms", full_name, stars, rust_percentage, start_time.elapsed().as_millis()));
 	});
-
+	bar.finish_with_message("Analysis completed.");
 }
 
 pub async fn run_collection_pipeline(
@@ -228,14 +239,14 @@ fn os_thread_id() -> libc::pid_t {
 pub fn run_symbols_for_repo(
 	repo: &Repo,
 	output: &str
-) -> Result<(), SymbolsError> {
+) -> Result<usize, SymbolsError> {
 	let repo_name = repo.name.replace("/", "_");
 	let temp_folder = format!("temp_symbols/{}", repo_name);
 	let results_folder = format!("{}/{}", output, repo_name);
 	let metadata_path = format!("{}/metadata.txt", results_folder);
 
 	if Path::new(&metadata_path).exists() {
-		return Ok(());
+		return Ok(0);
 	}
 
 	if Path::new(&temp_folder).exists() {
@@ -329,17 +340,17 @@ pub fn run_symbols_for_repo(
 			total_symbols
 		).as_bytes())
 		.map_err(|_| SymbolsError::ResultsWriteError)?; 
-	println!(
-		"[{}][{}] Cloned {} in {:.2?}, gathered and wrote results in {:.2?} (total symbols: {})",
-		repo.stars,
-		repo.name,
-		branch,
-		clone_duration,
-		gather_duration,
-		total_symbols,
-	);
+	// println!(
+	// 	"[{}][{}] Cloned {} in {:.2?}, gathered and wrote results in {:.2?} (total symbols: {})",
+	// 	repo.stars,
+	// 	repo.name,
+	// 	branch,
+	// 	clone_duration,
+	// 	gather_duration,
+	// 	total_symbols,
+	// );
 
-	Ok(())
+	Ok(total_symbols)
 }
 
 pub struct Repo {
@@ -390,18 +401,31 @@ pub fn run_symbols_pipeline(
 		}
 	}
 
+	let bar = ProgressBar::new(unique_repos.len() as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+            )
+            .expect("Failed to create template")
+            .progress_chars("#>-"),
+    );
+
 	unique_repos.sort_by(|a, b| b.stars.cmp(&a.stars));
-
-
 	unique_repos.iter().par_bridge().for_each(|repo| {
 		match run_symbols_for_repo(repo, output) {
-			Ok(()) => {},
+			Ok(n) => {
+				bar.set_message(format!("Collected {} symbols for {}", n, repo.name));
+				bar.inc(1);
+			},
 			Err(e) => {
 				eprintln!("Error processing repository {}: {:?}", repo.name, e);
 			}
 		}
 		fs::remove_dir_all(format!("temp_symbols/{}", repo.name.replace("/", "_"))).unwrap_or(());
 	});
+
+	bar.finish_with_message("Collection completed.");
 }
 
 pub async fn run_symbols_collect_pipeline(
@@ -520,10 +544,12 @@ pub fn run_symbols_hash_pipeline(
             .expect("Failed to create template")
             .progress_chars("#>-"),
     );
-    bar.set_message("Hashing projects...");
 	
 	folders.par_iter().for_each(|dir| {
+		let start_time = std::time::Instant::now();
 		hash::hash_for_project(dir.to_path_buf(), output.to_string());
+		let name = dir.file_name().unwrap().to_str().unwrap().to_string();
+    	bar.set_message(format!("Hashed {} in {} ms", name, start_time.elapsed().as_millis()));
 		bar.inc(1);
 	});
 
