@@ -58,11 +58,13 @@ fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) 
 }
 
 const MIN_LENGTH: usize = 5;
+
 pub fn hash_for_project(
     folder: PathBuf,
     output: String
 ) {
     let project = folder.file_name().unwrap().to_str().unwrap().to_string();
+	let start_time = std::time::Instant::now();
 
     let bh = BuildHasherDefault::<FnvHasher>::default();
     let mut hasher = SuperMinHash2::<u64, String, _>::new(1024, bh);
@@ -71,7 +73,6 @@ pub fn hash_for_project(
     let mut total_filtered_count = 0;
     let mut total_symbol_count = 0;
 
-    let read_start_time = std::time::Instant::now();
     let paths = fs::read_dir(&folder).expect("Failed to read directory");
 
     for path in paths {
@@ -88,18 +89,15 @@ pub fn hash_for_project(
             }
         }
     }
-    let read_duration = read_start_time.elapsed();
-    println!("[{}] Read {} identifiers in {} ms.", project, total_identifiers_count, read_duration.as_millis());
     
     let minhash = hasher.get_hsketch();
     
-    let write_start_time = std::time::Instant::now();
     let mut writer = fs::OpenOptions::new()
     .append(true)
     .create(true)
     .open(&output)
     .unwrap();
-    writer.write_all(format!("{},{},", project, total_symbol_count).as_bytes()).unwrap();
+    writer.write_all(format!("{},{},", project, 0).as_bytes()).unwrap();
     writer.write_all(
         &minhash.iter()
         .map(|v| v.to_string())
@@ -108,14 +106,15 @@ pub fn hash_for_project(
         .as_bytes()
     ).unwrap();
     writer.write_all(b"\n").unwrap();
-    let write_duration = write_start_time.elapsed();
 
-    println!("[{}] {} -> {} -> {} symbols (total) processed and hashed, wrote result in {} ms.", 
-             project, 
-             total_identifiers_count, 
-             total_filtered_count, 
-             total_symbol_count, 
-             write_duration.as_millis());
+    println!(
+		"[{}] {} -> {} -> {} symbols (total) processed and hashed in {} ms.", 
+		project, 
+		total_identifiers_count, 
+		total_filtered_count, 
+		total_symbol_count,
+		start_time.elapsed().as_millis()
+	);
 }
 
 struct HashData {
