@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
+use std::sync::Mutex;
 
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 
@@ -86,28 +86,37 @@ pub fn run_analysis_pipeline(
 	// repos = repos.iter().take(10).cloned().collect();
 
 	let total_repos = repos.len();
-	let bar = ProgressBar::new(total_repos as u64);
-    bar.set_style(
+	let mp = MultiProgress::new();
+	let overall_bar = mp.add(ProgressBar::new(total_repos as u64));
+    overall_bar.set_style(
         ProgressStyle::default_bar()
             .template(
-                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta}) {msg}"
+                "[{elapsed_precise}] [{bar:100.cyan/blue}] {pos}/{len} ({eta})"
             )
             .expect("Failed to create template")
             .progress_chars("#>-"),
     );
 
-	repos.iter().par_bridge().for_each(|(full_name, stars, rust_percentage)| {
-		// let current_index = i.fetch_add(1, atomic::Ordering::SeqCst);
-		// println!(
-		// 	"[{}/{}] Analyzing repository: {} ({} stars, {:.2}% Rust)",
-		// 	current_index + 1,
-		// 	total_repos,
-		// 	full_name,
-		// 	stars,
-		// 	rust_percentage
-		// );
+	let mut handles: HashMap<usize, ProgressBar> = HashMap::new();
+	for thread in 0..rayon::current_num_threads() {
+		let pb = mp.add(ProgressBar::new(0));
+		pb.set_style(
+			ProgressStyle::default_spinner()
+				.template(
+					&format!("[{{elapsed_precise}}] [Thread {}] {{spinner}} {{msg}}", thread)
+				)
+				.expect("Failed to create template")
+				.tick_chars("/|\\- "),
+		);
+		pb.set_message("Starting...");
+		handles.insert(thread, pb);
+	}
 
-		let start_time = std::time::Instant::now();
+	repos.iter().par_bridge().for_each(|(full_name, stars, rust_percentage)| {
+		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
+		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
+		bar.set_message(format!("Analyzing {} ({} stars, {:.2}% Rust)", full_name, stars, rust_percentage));
+
 		let status = std::process::Command::new("./target/release/migration-status")
 			.args(&["single", full_name, &output_dir])
 			.status()
@@ -116,10 +125,9 @@ pub fn run_analysis_pipeline(
 		if !status.success() {
 			eprintln!("Failed to analyze repository: {}", full_name);
 		}
-		bar.inc(1);
-		bar.set_message(format!("Analyzed {} ({} stars, {:.2}% Rust) in {} ms", full_name, stars, rust_percentage, start_time.elapsed().as_millis()));
+		overall_bar.inc(1);
 	});
-	bar.finish_with_message("Analysis completed.");
+	overall_bar.finish_with_message("Analysis completed.");
 }
 
 pub async fn run_collection_pipeline(
@@ -579,13 +587,23 @@ pub fn run_symbols_hash_pipeline(
 		pb.set_message("Starting...");
 		handles.insert(thread, pb);
 	}
+
+	let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(output)
+        .expect("Failed to open output file");
+    
+    let writer = Arc::new(Mutex::new(BufWriter::new(file)));
 	
 	folders.par_iter().for_each(|dir| {
 		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
 		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
-		hash::hash_for_project(dir.to_path_buf(), output.to_string(), bar);
+		hash::hash_for_project(dir.to_path_buf(), &writer, bar);
 		overall_bar.inc(1);
 	});
+
+	writer.lock().unwrap().flush().unwrap();
 
 	overall_bar.finish_with_message("Hashing completed.");
 }

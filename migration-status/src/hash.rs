@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::{self, File}, hash::BuildHasherDefault, io::{BufRead, BufReader, Read, Write}, path::PathBuf};
+use std::{collections::HashSet, fs::{self, File}, hash::BuildHasherDefault, io::{BufRead, BufReader, BufWriter, Read, Write}, path::PathBuf, sync::{Arc, Mutex}};
 
 use flate2::bufread::GzDecoder;
 use fnv::FnvHasher;
@@ -55,7 +55,6 @@ fn process_file_identifiers(file_path: &PathBuf) -> (usize, usize, Vec<String>) 
 				}
 			}
 		} else {
-			eprintln!("Failed to read line in file {:?}", file_path);
 			break;
 		}
     }
@@ -67,7 +66,7 @@ const MIN_LENGTH: usize = 5;
 
 pub fn hash_for_project(
     folder: PathBuf,
-    output: String,
+    output: &Arc<Mutex<BufWriter<File>>>,
 	bar: &ProgressBar,
 ) {
     let project = folder.file_name().unwrap().to_str().unwrap().to_string();
@@ -92,11 +91,7 @@ pub fn hash_for_project(
     
     let minhash = hasher.get_hsketch();
     
-    let mut writer = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&output)
-    .unwrap();
+    let mut writer = output.lock().unwrap();
     writer.write_all(format!("{},{},", project, 0).as_bytes()).unwrap();
     writer.write_all(
         &minhash.iter()
@@ -106,6 +101,7 @@ pub fn hash_for_project(
         .as_bytes()
     ).unwrap();
     writer.write_all(b"\n").unwrap();
+	writer.flush().unwrap();
 }
 
 struct HashData {
@@ -131,7 +127,13 @@ fn read_hash_data(
 		let hashes: Vec<u64> = tokens[2..]
 			.iter()
 			.filter(|s| !s.is_empty())
-			.map(|s| s.parse::<u64>().unwrap())
+			.filter_map(|s| match s.parse::<u64>() {
+				Ok(value) => Some(value),
+				Err(_) => {
+					eprintln!("Failed to parse '{}' as u64", s);
+					None
+				}
+			})
 			.collect();
 		hash_data_list.push(HashData {
 			project,

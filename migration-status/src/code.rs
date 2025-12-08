@@ -283,7 +283,7 @@ pub fn extensive_extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        if kind.to_lowercase().contains("identifier") {
+        if kind.contains("identifier") {
             let parent = node.parent();
             let grandparent = parent.and_then(|p| p.parent());
             let great_grandparent = grandparent.and_then(|gp| gp.parent());
@@ -331,6 +331,7 @@ pub fn extensive_extract_symbols_for_file(
         let mut p = Parser::new();
         p.set_language(&lang.ts_language())
             .expect("Failed to set Tree-sitter language");
+        p.set_timeout_micros(60_000_000);
         p
     });
 
