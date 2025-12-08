@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use tokei::LanguageType;
-use tree_sitter::{Language, Node, ParseOptions, Parser};
+use tree_sitter::{Language, Node, ParseOptions, Parser, Point};
 use walkdir::WalkDir;
 
 use crate::pipeline::SymbolsError;
@@ -275,8 +275,12 @@ pub fn extensive_extract_symbols_for_language(
 ) {
     let start_time = std::time::Instant::now();
     let timeout_duration = Duration::from_secs(5);
-    let mut read_callback = |offset, _position| {
-        source.as_bytes().get(offset..).map(|s| &s[..]).unwrap()
+    let mut read_callback = |offset: usize, _position: Point| {
+        if offset < source.len() {
+            &source.as_bytes()[offset..]
+        } else {
+            &[]
+        }
     };
     let tree = match parser.parse_with_options(&mut read_callback, None, Some(ParseOptions {
         progress_callback: Some(&mut |_| {
