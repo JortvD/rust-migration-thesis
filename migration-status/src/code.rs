@@ -1,20 +1,16 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::hash::Hash;
 use std::path::Path;
-use std::io::Read;
+use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 
-use tokei::LanguageType;
-use tree_sitter::{Language, Node, Parser};
+use tree_sitter::{Language, Parser};
 use walkdir::WalkDir;
 
 use crate::pipeline::SymbolsError;
-
-#[derive(Debug, Clone)]
-pub struct Symbol {
-    pub name: String,
-}
+use std::io::Write;
 
 /// Known languages we support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -153,13 +149,13 @@ const MIN_SYMBOL_NAME_LENGTH: usize = 4;
 
 pub fn extract_symbols_for_language(
     parser: &mut Parser,
-    lang: SupportedLanguage,
     source: &str,
-    out: &mut HashSet<String>,
-) {
+) -> HashSet<String> {
+    let mut symbols = HashSet::new();
+    parser.set_timeout_micros(5_000_000);
     let tree = match parser.parse(&source, None) {
         Some(t) => t,
-        None => return,
+        None => return symbols,
     };
 
     let mut stack = Vec::with_capacity(64);
@@ -168,16 +164,14 @@ pub fn extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        // if let Some(_) = find_decl_kind(lang, kind) {
-        //     if let Some(name_node) = find_name_child(node) {
-        //         if let Ok(text) = name_node.utf8_text(source.as_bytes()) {
-        //             let normalized = normalize_name(text);
-        //             if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
-        //                 out.insert(normalized);
-        //             }
-        //         }
-        //     }
-        // }
+        if kind.contains("identifier") {
+            if let Ok(text) = node.utf8_text(source.as_bytes()) {
+                let normalized = normalize_name(text);
+                if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
+                    symbols.insert(normalized);
+                }
+            }
+        }
 
         // DFS into children
         let mut cursor = node.walk();
@@ -191,38 +185,14 @@ pub fn extract_symbols_for_language(
         }
     }
     parser.reset();
+
+    symbols
 }
 
-pub fn extract_symbols_for_file(
-    path: &Path,
-    parser_map: &mut HashMap<SupportedLanguage, Parser>,
-    symbols_map: &mut HashMap<SupportedLanguage, HashSet<String>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let src = fs::read_to_string(path)?;
-
-    let lang = match SupportedLanguage::from_path(path) {
-        Some(l) => l,
-        None => return Ok(()),
-    };
-
-    let parser = parser_map.entry(lang).or_insert_with(|| {
-        let mut p = Parser::new();
-        p.set_language(&lang.ts_language())
-            .expect("Failed to set Tree-sitter language");
-        p
-    });
-
-    let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
-
-    extract_symbols_for_language(parser, lang, &src, out_set);
-
-    Ok(())
-}
-
-pub fn find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<String>>, usize), Box<dyn std::error::Error>> {
-    let mut symbols_map: HashMap<SupportedLanguage, HashSet<String>> = HashMap::new();
+pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<(HashSet<SupportedLanguage>, usize, usize), Box<dyn std::error::Error>> {
     let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
     let mut file_count = 0;
+    let mut symbol_count = 0;
 
     for entry in WalkDir::new(root).into_iter().filter_entry(|e| {
         if let Some(name) = e.file_name().to_str() {
@@ -246,13 +216,53 @@ pub fn find_symbols(root: &Path) -> Result<(HashMap<SupportedLanguage, HashSet<S
             continue;
         }
 
-        if let Err(_) = extract_symbols_for_file(&path, &mut parser_map, &mut symbols_map) {
-            continue;
+        let lang = match SupportedLanguage::from_path(&path) {
+            Some(l) => l,
+            None => continue,
+        };
+
+        let parser = parser_map.entry(lang).or_insert_with(|| {
+            let mut p = Parser::new();
+            p.set_language(&lang.ts_language())
+                .expect("Failed to set Tree-sitter language");
+            p
+        });
+        let src = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let mut symbols = extract_symbols_for_language(parser, &src);
+        
+        let path_str = format!("{}/{}_{}_symbols.txt", results_dir, index, lang.to_string());
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .append(true)
+            .open(&path_str)?;
+
+        let reader = BufReader::new(file.try_clone()?);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                symbols.remove(&line);
+            } else {
+                break;
+            }
+        }
+        
+        let mut writer = BufWriter::new(file);
+        for symbol in symbols.iter() {
+            writeln!(writer, "{}", symbol)?;
+            symbol_count += 1;
         }
         file_count += 1;
     }
 
-    Ok((symbols_map, file_count))
+    Ok((
+        parser_map.keys().cloned().collect(),
+        symbol_count,
+        file_count,
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

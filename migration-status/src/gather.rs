@@ -1,15 +1,13 @@
-use core::num;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
+use indicatif::ProgressBar;
 use tokei::{Config, LanguageType, Languages};
 use chrono;
-use walkdir::WalkDir;
 use std::collections::{HashMap, HashSet};
-use crate::code::{self, SupportedLanguage, Symbol};
+use crate::code::{self, SupportedLanguage};
 
-use crate::consts::DEBUG;
 use crate::repository;
 
 #[derive(Debug)]
@@ -18,104 +16,12 @@ pub enum GatherError {
     RepositoryCloneError,
     MainBranchNotFound,
     RevwalkError,
-    CommitLookupError,
-    CheckoutError,
-}
-
-
-pub const PHRASES: &[&str] = &[
-    "clone of",
-    "copy of",
-    "mirror of",
-    "replacement for",
-    "rewrite of",
-    "rewritten in",
-    "alternative to",
-    "implementation of",
-    "reimplementation of",
-    "reimplemented in",
-    "adaptation of",
-    "converted to",
-    "adapted to",
-    "migrated to",
-    "transitioned to",
-    "rewriting to",
-    "migration to",
-];
-
-pub struct TextMatch {
-    pub phrase: String,
-    pub before: String,
-    pub after: String,
-}
-
-const MATCH_CONTEXT_CHARS: usize = 30;
-
-fn find_text_matches(path: &Path) -> Vec<TextMatch> {
-    let mut matches = Vec::new();
-    
-    for entry in WalkDir::new(path).into_iter().filter_entry(|e| {
-        if let Some(name) = e.file_name().to_str() {
-            name != ".git" && name != "target"
-        } else {
-            true
-        }
-    }) {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        let path: PathBuf = entry.path().into();
-
-        if path.extension().is_none() || path.extension().unwrap().to_str() != Some("md") {
-            continue;
-        }
-
-        let mut text = match std::fs::read_to_string(&path) {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        text = text.replace("-", "").replace("\n", " ").replace("\r", " ").to_lowercase();
-
-        for phrase in PHRASES {
-            let mut start = 0;
-            while let Some(pos) = text[start..].find(phrase) {
-                let match_start = start + pos;
-                let match_end = match_start + phrase.len();
-
-                let before_start = match match_start.checked_sub(MATCH_CONTEXT_CHARS) {
-                    Some(v) => v,
-                    None => 0,
-                };
-                let before = &text[before_start..match_start];
-
-                let after_end = (match_end + MATCH_CONTEXT_CHARS).min(text.len());
-                let after = &text[match_end..after_end];
-
-                matches.push(TextMatch {
-                    phrase: phrase.to_string(),
-                    before: before.to_string(),
-                    after: after.to_string(),
-                });
-
-                start = match_end;
-            }
-        }
-    }
-    
-    matches
-    
 }
 
 pub fn get_repo_symbols(name: &str) -> Result<HashMap<SupportedLanguage, HashSet<String>>, ()> {
     let parts: Vec<&str> = name.split('/').collect();
     if parts.len() != 2 {
-        println!("[{}] Skipping invalid repository name", name);
+        //println!("[{}] Skipping invalid repository name", name);
         return Err(());
     }
     let owner = parts[0];
@@ -130,7 +36,8 @@ pub fn get_repo_symbols(name: &str) -> Result<HashMap<SupportedLanguage, HashSet
     let temp_repo_dir = format!("{}/{}_{}", temp, owner, repo);
     let writer = &mut std::io::stdout();
 
-    let repo_info = repository::BareRepositoryInfo::clone_or_open(writer, owner, repo, &temp_repo_dir).map_err(|_| ())?;
+    let bar = ProgressBar::new(0);
+    let repo_info = repository::BareRepositoryInfo::clone_or_open(&bar, owner, repo, &temp_repo_dir).map_err(|_| ())?;
     let main_branch = repo_info.get_main_branch().ok_or(())?;
     let commit = repo_info.get_latest_commit(&main_branch).map_err(|_| ())?;
     let commit = match repo_info.checkout_commit(commit, &main_branch) {
@@ -138,9 +45,9 @@ pub fn get_repo_symbols(name: &str) -> Result<HashMap<SupportedLanguage, HashSet
         Err(_) => return Err(()),
     };
     let path = Path::new(&temp_repo_dir);
-    let (symbols, file_count) = code::find_symbols(path).unwrap_or_default();
+    // let (symbols, file_count) = code::find_symbols(path).unwrap_or_default();
 
-    Ok(symbols)
+    Ok(HashMap::new()) //symbols
 }
 
 fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
@@ -164,8 +71,8 @@ fn select_evenly_spread_commits_and_checkout_each(
     repo: &str, 
     temp_dir: &str, 
     num_commits: usize, 
-    writer: &mut dyn std::io::Write,
-    func: &mut dyn FnMut(&git2::Commit, usize, &String, &mut dyn std::io::Write) -> bool,
+    bar: &ProgressBar,
+    func: &mut dyn FnMut(&git2::Commit, usize, &String) -> bool,
 )-> Result<(), GatherError> {
     if !Path::new(temp_dir).exists() {
         fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
@@ -173,18 +80,18 @@ fn select_evenly_spread_commits_and_checkout_each(
 
     let temp_repo_dir = format!("{}/{}_{}", temp_dir, owner, repo);
 
+    bar.set_message(format!("{}: Cloning repository", repo));
+    bar.inc(1);
     let repo_info =
-        repository::BareRepositoryInfo::clone_or_open(writer, owner, repo, &temp_repo_dir)
+        repository::BareRepositoryInfo::clone_or_open(&bar, owner, repo, &temp_repo_dir)
             .map_err(|_| GatherError::RepositoryCloneError)?;
 
+    bar.set_message(format!("{}: Getting main branch", repo));
+    bar.inc(1);
     let main_branch = repo_info
         .get_main_branch()
         .ok_or(GatherError::MainBranchNotFound)?;
 
-    writeln!(
-        writer,
-        "Analyzing branch: {main_branch}"
-    ).expect("Failed to write to writer");
     let start_time = Instant::now();
 
     let commits = repo_info
@@ -192,12 +99,7 @@ fn select_evenly_spread_commits_and_checkout_each(
         .map_err(|_| GatherError::RevwalkError)?;
 
     let commit_count = commits.len();
-    writeln!(
-        writer,
-        "Commits in branch {main_branch}: {} (in {} ms)",
-        commit_count,
-        start_time.elapsed().as_millis()
-    ).expect("Failed to write to writer");
+    bar.set_message(format!("{}: Branch {} has {} commits", repo, main_branch, commit_count));
 
     if commit_count == 0 {
         return Ok(());
@@ -214,17 +116,13 @@ fn select_evenly_spread_commits_and_checkout_each(
             Err(_) => continue,
         };
 
-        writeln!(
-            writer,
-            "[{}][{}] Checked out commit {} at {} (took {} ms)",
-            i,
-            chrono::Utc::now().to_rfc3339(),
-            &commit.id().to_string()[..8],
-            chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
-            start_time.elapsed().as_millis(),
-        ).expect("Failed to write to writer");
+        bar.set_message(format!("{}: {}_{} - Checked out commit {} at {}", i, repo, owner, &commit.id().to_string()[..8], chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error")));
+        bar.inc(1);
 
-        let result = func(&commit, i, &temp_repo_dir, writer);
+        let result = func(&commit, i, &temp_repo_dir);
+
+        bar.set_message(format!("{}: {}_{} - Finished gathering data from commit {}", i, repo, owner, &commit.id().to_string()[..8]));
+        bar.inc(1);
 
         if !result {
             break;
@@ -235,18 +133,15 @@ fn select_evenly_spread_commits_and_checkout_each(
 }
 
 pub struct AnalyzeResult {
-    pub lang_stats: HashMap<LanguageType, (f64, usize)>,
-    pub symbols: HashMap<code::SupportedLanguage, HashSet<String>>,
-    pub text_matches: Vec<TextMatch>,
+    pub lang_stats: HashMap<LanguageType, (f64, usize, usize, usize)>,
+    pub symbols: HashSet<code::SupportedLanguage>,
     pub can_continue: bool,
 }
 
 pub fn analyze_commit(
-    repo: &String,
-    commit: &git2::Commit,
+    result_dir: &str,
     index: usize,
     dir: &String,
-    writer: &mut dyn std::io::Write,
 ) -> AnalyzeResult {
     let path = Path::new(dir);
     let paths = [dir.as_str()];
@@ -254,8 +149,7 @@ pub fn analyze_commit(
     let config = Config::default();
 
     let start_time = Instant::now();
-    let (symbols, file_count) = code::find_symbols(path).unwrap_or_default();
-    let measured_symbols_count: usize = symbols.values().map(|s| s.len()).sum();
+    let (language_map, symbol_count, file_count) = code::find_symbols(&result_dir, index, path).unwrap_or_default();
     let symbol_measure_duration = start_time.elapsed().as_millis();
 
     let start_time = Instant::now();
@@ -266,43 +160,13 @@ pub fn analyze_commit(
     for (lang, stats) in languages.iter() {
         let loc = stats.code;
         let loc_pct = loc as f64 / total_loc.max(1.0);
-        lang_stats.insert(*lang, (loc_pct, loc));
+        lang_stats.insert(*lang, (loc_pct, loc, stats.blanks, stats.comments));
     }
     let lang_measure_duration = start_time.elapsed().as_millis();
 
-    let start_time = Instant::now();
-    let text_matches = find_text_matches(path);
-    for text_match in &text_matches {
-        writeln!(
-            writer,
-            "[{}][{}] Found text match: ...{}[{}]{}...",
-            index,
-            chrono::Utc::now().to_rfc3339(),
-            text_match.before,
-            text_match.phrase,
-            text_match.after,
-        ).expect("Failed to write to writer");
-    }
-    let text_match_duration = start_time.elapsed().as_millis();
-
-    writeln!(
-        writer,
-        "[{}][{}] Analyzed. Language analysis took found {} LOC in {} ms; symbol analysis found {} symbols in {} files in {} ms. Text match analysis found {} matches in {} ms.",
-        index,
-        chrono::Utc::now().to_rfc3339(),
-        total_loc as usize,
-        lang_measure_duration,
-        measured_symbols_count,
-        file_count,
-        symbol_measure_duration,
-        text_matches.len(),
-        text_match_duration,
-    ).expect("Failed to write to writer");
-
     AnalyzeResult {
         lang_stats,
-        symbols,
-        text_matches,
+        symbols: language_map,
         can_continue: true,
     }
 }
@@ -311,28 +175,27 @@ pub fn analyze_commit(
 pub struct RepositoryStats {
     pub length: usize,
     pub name: String,
-    pub lang_stats: Vec<HashMap<LanguageType, (f64, usize)>>,
-    pub symbols: Vec<HashMap<code::SupportedLanguage, HashSet<String>>>,
-    pub text_matches: Vec<Vec<TextMatch>>,
+    pub lang_stats: Vec<HashMap<LanguageType, (f64, usize, usize, usize)>>,
+    pub symbols: Vec<HashSet<code::SupportedLanguage>>,
+    pub results_folder: String,
 }
 
 pub fn gather_repository_statistics(
     owner: &str,
     repo: &str,
+    result_dir: &str,
     temp_dir: &str,
     num_commits: usize,
-    writer: &mut dyn std::io::Write,
+    bar: &ProgressBar,
 ) -> Result<RepositoryStats, GatherError> {
     let repo_name = format!("{}/{}", owner, repo);
     let mut symbols = Vec::new();
     let mut lang_stats = Vec::new();
-    let mut text_matches = Vec::new();
 
-    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, writer, &mut |commit, i, dir, writer| {
-        let analyze_result = analyze_commit(&repo_name, commit, i, &dir, writer);
+    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, bar, &mut |commit, i, dir| {
+        let analyze_result = analyze_commit(&result_dir, i, &dir);
         symbols.push(analyze_result.symbols);
         lang_stats.push(analyze_result.lang_stats);
-        text_matches.push(analyze_result.text_matches);
         
         true
     })?;
@@ -342,6 +205,6 @@ pub fn gather_repository_statistics(
         name: repo_name,
         lang_stats,
         symbols,
-        text_matches,
+        results_folder: result_dir.to_string(),
     })
 }

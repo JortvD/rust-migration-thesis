@@ -1,5 +1,6 @@
 use git2::{FetchOptions, RemoteCallbacks};
 use git2::{Repository, build::RepoBuilder};
+use indicatif::ProgressBar;
 use std::process::{Command, Stdio};
 use std::time::Instant;
 use std::io::{self, Cursor, Write};
@@ -12,12 +13,12 @@ pub struct BareRepositoryInfo {
 }
 
 impl BareRepositoryInfo {
-    pub fn clone_or_open(writer: &mut dyn std::io::Write, owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {       
+    pub fn clone_or_open(bar: &ProgressBar, owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {   
+        let name = format!("{}/{}", owner, repo);    
         let repo_url = format!("https://github.com/{}/{}.git", owner, repo);
         let git_dir = dir.to_string() + ".git";
         let git_path = std::path::Path::new(&git_dir);
         let start_time = Instant::now();
-        let writer = std::cell::RefCell::new(writer);
         let repository = if !git_path.exists() {
             let mut callbacks = RemoteCallbacks::new();
             
@@ -31,13 +32,13 @@ impl BareRepositoryInfo {
                 };
                 if received_pct > last_received_pct {
                     last_received_pct = received_pct;
-                    let _ = writeln!(
-                        writer.borrow_mut(),
-                        "[download] received {} MB, {}/{} objects",
+                    bar.set_message(format!(
+                        "{}: [download] received {} MB, {}/{} objects",
+                        name,
                         stats.received_bytes() / (1024 * 1024),
                         stats.received_objects(),
                         stats.total_objects()
-                    );
+                    ));
                 }
                 let indexed_pct = if stats.total_objects() > 0 {
                     (stats.indexed_objects() * 100 / stats.total_objects()) as u32
@@ -46,30 +47,30 @@ impl BareRepositoryInfo {
                 };
                 if indexed_pct > last_indexed_pct {
                     last_indexed_pct = indexed_pct;
-                    let _ = writeln!(
-                        writer.borrow_mut(),
-                        "[indexing] {}/{} objects",
+                    bar.set_message(format!(
+                        "{}: [indexing] {}/{} objects",
+                        name,
                         stats.indexed_objects(),
                         stats.total_objects()
-                    );
+                    ));
                 }
                 true
             });
 
             callbacks.sideband_progress(|data| {
                 let progress = String::from_utf8_lossy(data);
-                let _ = writeln!(writer.borrow_mut(), "[unpacking] {}", progress.trim());
+                bar.set_message(format!("{}: [unpacking] {}", name, progress.trim()));
                 true
             });
 
             callbacks.pack_progress(|stage, current, total| {
-                let _ = writeln!(
-                    writer.borrow_mut(),
-                    "[pack] stage: {:?}, {}/{} objects",
+                bar.set_message(format!(
+                    "{}: [pack] stage: {:?}, {}/{} objects",
+                    name,
                     stage,
                     current,
                     total
-                );
+                ));
             });
 
             let mut fetch_opts = FetchOptions::new();
@@ -89,13 +90,12 @@ impl BareRepositoryInfo {
             }
         };
 
-        writeln!(
-            writer.borrow_mut(),
+        bar.set_message(format!(
             "[{}] Repository at {} ready (took {} ms)",
-            owner,
+            name,
             dir,
             start_time.elapsed().as_millis()
-        ).expect("Failed to write to writer");
+        ));
 
         Ok(BareRepositoryInfo {
             repository,

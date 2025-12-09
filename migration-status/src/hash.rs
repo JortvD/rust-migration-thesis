@@ -7,7 +7,7 @@ use fnv::FnvHasher;
 use indicatif::ProgressBar;
 use probminhash::superminhasher2::{get_jaccard_index_estimate, SuperMinHash2};
 
-const MIN_LENGTH: usize = 0;
+const MIN_LENGTH: usize = 5;
 const NUM_HASHES: usize = 1024;
 
 fn read_u32<R: Read>(reader: &mut R) -> std::io::Result<u32> {
@@ -20,11 +20,6 @@ fn read_u64<R: Read>(reader: &mut R) -> std::io::Result<u64> {
     let mut buffer = [0u8; 8];
     reader.read_exact(&mut buffer)?;
     Ok(u64::from_le_bytes(buffer))
-}
-
-struct MatchOptions {
-	include_languages: Option<HashSet<String>>,
-	exclude_languages: Option<HashSet<String>>,
 }
 
 const LANGUAGES: [&str; 24] = [
@@ -224,6 +219,7 @@ pub fn find_most_similar(
     
     for hash_data in &hash_data_list {
         if hash_data.project == name { continue; }
+        if hash_data.language == langauge { continue; }
 
         let similarity = get_jaccard_index_estimate(
             &hash_data.hashes,
@@ -235,7 +231,8 @@ pub fn find_most_similar(
 
     results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    for (i, (similarity, hash_data)) in results.iter().take(250).enumerate() {
+    println!("Most similar projects to {} (language: {}):", name, langauge);
+    for (i, (similarity, hash_data)) in results.iter().take(15).enumerate() {
          println!(
             "  {}. {} for {} - Similarity: {:.4}",
             i + 1,

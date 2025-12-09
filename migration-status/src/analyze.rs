@@ -1,25 +1,17 @@
-use tokei::LanguageType;
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, fs, io::BufRead};
+use std::io::Write;
+use indicatif::ProgressBar;
+use meansd::MeanSD;
 
-use crate::{code, consts::DEBUG, gather::RepositoryStats, math};
-
-fn find_migration_start_index(
-	repo_stats: &RepositoryStats,
-) -> Option<usize> {
-	for (i, lang_stat) in repo_stats.lang_stats.iter().enumerate() {
-		let rust_pct = lang_stat.get(&LanguageType::Rust).map_or(0.0, |s| s.0);
-		
-		if rust_pct > 0.0 {
-			return Some(i);
-		}
-	}
-	None
-}
+use crate::{code, gather::RepositoryStats};
 
 struct SymbolMovement {
-	common_count: usize,
 	moved_count: usize,
-	moved_percentage: f64,
+	moved_len_mean: f64,
+	moved_len_stddev: f64,
+	common_count: usize,
+	common_len_mean: f64,
+	common_len_stddev: f64,
 	before_count: usize,
 	after_count: usize,
 }
@@ -40,25 +32,29 @@ fn analyze_symbols (
 
 			let intersection = names_before.intersection(&names_after).collect::<HashSet<_>>();
 
-			let common_count = intersection.len();
-
 			let other_names_after = symbols_after.iter()
 				.filter(|s| *s.0 != *lang_after)
 				.flat_map(|s| s.1.iter())
 				.collect::<HashSet<_>>();
 
-			let moved_count = intersection.difference(&other_names_after).count();
+			let moved = intersection.difference(&other_names_after).collect::<HashSet<_>>();
+
+			let mut common_meansd = MeanSD::default();
+			intersection.iter()
+				.for_each(|s| { common_meansd.update(s.len() as f64); });
+			let mut moved_meansd = MeanSD::default();
+			moved.iter()
+				.for_each(|s| { moved_meansd.update(s.len() as f64); });
 
 			movement.insert(
 				(*lang_before, *lang_after),
 				SymbolMovement {
-					common_count,
-					moved_count,
-					moved_percentage: if common_count > 0 {
-						moved_count as f64 / common_count as f64
-					} else {
-						0.0
-					},
+					common_count: intersection.len(),
+					common_len_mean: common_meansd.mean(),
+					common_len_stddev: common_meansd.sstdev(),
+					moved_count: moved.len(),
+					moved_len_mean: moved_meansd.mean(),
+					moved_len_stddev: moved_meansd.sstdev(),
 					before_count: names_before.len(),
 					after_count: names_after.len(),
 				},
@@ -71,214 +67,102 @@ fn analyze_symbols (
 	}
 }
 
-#[derive(Debug)]
-pub enum RustAdditionResult {
-	NeverAdded,
-	AddedAboveThreshold(f64, usize),
-	AlwaysPresent,
-	NoStats,
+fn get_results_file_writer(results_folder: &str, name: &str) -> flate2::write::GzEncoder<std::io::BufWriter<std::fs::File>> {
+	let file = fs::OpenOptions::new()
+		.create(true)
+		.read(true)
+		.append(true)
+		.open(format!("{}/{}.csv.gz", results_folder, name))
+		.expect("Failed to open language presence file");
+	let buf_writer = std::io::BufWriter::new(file);
+	flate2::write::GzEncoder::new(buf_writer, flate2::Compression::default())
 }
 
-fn test_rust_was_added(
-	writer: &mut dyn std::io::Write,
-	repo_stats: &RepositoryStats,
-	threshold: f64,
-) -> RustAdditionResult {
-	if let Some(first_stats) = repo_stats.lang_stats.first() {
-		let initial_rust_pct = first_stats.get(&LanguageType::Rust).map_or(0.0, |s| s.0);
-		if initial_rust_pct == 0.0 {
-			for (i, stats) in repo_stats.lang_stats.iter().enumerate().skip(1) {
-				let rust_pct = stats.get(&LanguageType::Rust).map_or(0.0, |s| s.0);
-				if rust_pct > threshold {
-					writeln!(
-						writer,
-						"Detected first signficant amount of Rust ({:.2}%) at point {}",
-						rust_pct * 100.0,
-						i
-					).expect("Failed to write to writer");
-
-					return RustAdditionResult::AddedAboveThreshold(rust_pct, i);
-				}
-			}
-
+fn language_presence_analysis(repo_stats: &RepositoryStats) {
+	let mut writer = get_results_file_writer(&repo_stats.results_folder, "languages");
+	for (i, lang_stat) in repo_stats.lang_stats.iter().enumerate() {
+		for (lang, (pct, loc, blanks, comments)) in lang_stat {
 			writeln!(
 				writer,
-				"No Rust added above threshold ({:.2}%) in analyzed history.",
-				threshold * 100.0
-			).expect("Failed to write to writer");
-			RustAdditionResult::NeverAdded
-		} else {
-			writeln!(
-				writer,
-				"Rust was already present at the start of the analyzed history ({:.2}%)",
-				initial_rust_pct * 100.0
-			).expect("Failed to write to writer");
-			RustAdditionResult::AlwaysPresent
+				"{},{},{},{},{},{}",
+				i,
+				lang.to_string(),
+				pct,
+				loc,
+				blanks,
+				comments
+			).expect("Failed to write to language presence file");
 		}
-	} else {
-		writeln!(
-			writer,
-			"No language statistics available to analyze Rust addition."
-		).expect("Failed to write to writer");
-
-		RustAdditionResult::NoStats
 	}
+	writer.finish().expect("Failed to finish writing language presence file");
 }
 
-#[derive(Debug)]
-pub enum CodeMovementResult {
-	MovementInProgress(code::SupportedLanguage, usize, f64, usize),
-	SignificantMovement(code::SupportedLanguage, usize, f64),
-	SignificantCommon(code::SupportedLanguage, usize, f64),
-	NoSignificantMovement,
-	NoMigrationPoint,
+fn get_symbols(
+    results_folder: &str,
+    index: usize,
+    languages: &HashSet<code::SupportedLanguage>,
+) -> HashMap<code::SupportedLanguage, HashSet<String>> {
+    let mut symbols_map = HashMap::new();
+    for lang in languages {
+        let file_path = format!("{}/{}_{}_symbols.txt", results_folder, index, lang.to_string());
+        
+        if let Ok(content) = std::fs::read_to_string(&file_path) {
+            let mut symbols_set = HashSet::new();
+            for line in content.lines() {
+                symbols_set.insert(line.to_string());
+            }
+            symbols_map.insert(*lang, symbols_set);
+        }
+    }
+    symbols_map
 }
 
-fn test_code_moved_to_rust(
-	writer: &mut dyn std::io::Write,
+fn identifier_analysis(
 	repo_stats: &RepositoryStats,
-	min_moved_count: usize,
-	moved_threshold: f64,
-	min_common_count: usize,
-	common_threshold: f64,
-	min_slope: f64,
-) -> CodeMovementResult {
-	let migration_idx = match find_migration_start_index(repo_stats) {
-		Some(idx) => idx,
-		None => return CodeMovementResult::NoMigrationPoint,
-	};
-	
-	if migration_idx == 0 || migration_idx >= repo_stats.symbols.len() {
-		return CodeMovementResult::NoMigrationPoint;
-	}
-
-	let mut max_common = 0;
-	let mut max_common_pct = 0.0;
-	let mut max_common_lang = None;
-
+	pb: &ProgressBar,
+) {
+	let mut writer = get_results_file_writer(&repo_stats.results_folder, "identifiers");
 	let length = repo_stats.symbols.len();
 
-	// NOTE: Only take 3 because of performance concerns
-	for x in ((migration_idx-1)..(length-1)).take(3) {
-		let mut max_moved = 0;
-		let mut max_moved_pct = 0.0;
-		let mut max_moved_lang = None;
-		
-		let mut moved_map = HashMap::new();
-		let symbols_before = &repo_stats.symbols[x];
-
-		for (i, symbols_after) in repo_stats.symbols[(x+1)..].iter().enumerate() {
-			let analysis = analyze_symbols(symbols_before, symbols_after);
+	for before_idx in 0..(length - 1) {
+		let symbols_before = get_symbols(
+			&repo_stats.results_folder,
+			before_idx,
+			&repo_stats.symbols[before_idx].iter().cloned().collect()
+		);
+		for after_idx in (before_idx + 1)..length {
+			pb.set_message(format!("from {}: {} analyzing identifiers", before_idx, repo_stats.name));
+			let symbols_after = get_symbols(
+				&repo_stats.results_folder,
+				after_idx,
+				&repo_stats.symbols[after_idx].iter().cloned().collect()
+			);
+			let analysis = analyze_symbols(&symbols_before, &symbols_after);
 			for ((lang_before, lang_after), movement) in analysis.movement.iter() {
-				if *lang_after == code::SupportedLanguage::Rust && *lang_before != code::SupportedLanguage::Rust {
-					if max_moved < movement.moved_count {
-						max_moved = movement.moved_count;
-						max_moved_lang = Some(lang_before.clone());
-						max_moved_pct = movement.moved_percentage;
-					}
-					if max_common < movement.common_count {
-						max_common = movement.common_count;
-						max_common_lang = Some(lang_before.clone());
-						max_common_pct = movement.common_count as f64 / movement.after_count as f64;
-					}
-					
-					moved_map.entry(lang_before.clone()).or_insert_with(Vec::new).push(movement.moved_count);
-					
-					writeln!(
-						writer,
-						"[{}->{}] {:?} to {:?}: moved {} / {} common symbols, or {:.2}% ({:?} total {}, {:?} total {})", 
-						x,
-						i + x + 1,
-						lang_before,
-						lang_after,
-						movement.moved_count,
-						movement.common_count,
-						movement.moved_percentage * 100.0,
-						lang_before,
-						movement.before_count,
-						lang_after,
-						movement.after_count,
-					).expect("Failed to write to writer");
-
-					if movement.moved_percentage >= moved_threshold && movement.moved_count >= min_moved_count {	
-						return CodeMovementResult::SignificantMovement(lang_before.clone(), movement.moved_count, movement.moved_percentage);
-					}
-				}
-			}
-		}
-
-		writeln!(
-			writer,
-			"[{}] Max moved symbols is too low for {:?}: {} < {} or {} < {:.2}%",
-			x,
-			max_moved_lang,
-			max_moved,
-			min_moved_count,
-			max_moved_pct * 100.0,
-			moved_threshold * 100.0
-		).expect("Failed to write to writer");
-
-		if let Some(lang) = max_moved_lang {
-			let moved_counts = &moved_map[&lang];
-			if let Some(slope) = math::least_squares_slope(moved_counts) {
-				if slope > min_slope && max_moved >= min_moved_count {
-					writeln!(
-						writer,
-						"[{}] Detected increasing trend for {:?} with slope {:.4}",
-						x, lang, slope
-					)
-					.expect("Failed to write to writer");
-
-					return CodeMovementResult::MovementInProgress(lang.clone(), max_moved, slope, moved_counts.len());
-				} else {
-					writeln!(
-						writer,
-						"[{}] No significant increasing trend for {:?} (slope {:.4} < {:.4} or max_moved {} < {})",
-						x, lang, slope, min_slope, max_moved, min_moved_count
-					)
-					.expect("Failed to write to writer");
-				}
+				writeln!(
+					writer,
+					"{},{},{},{},{},{},{},{},{},{},{},{}",
+					before_idx,
+					after_idx,
+					lang_before.to_string(),
+					lang_after.to_string(),
+					movement.moved_count,
+					movement.moved_len_mean,
+					movement.moved_len_stddev,
+					movement.common_count,
+					movement.common_len_mean,
+					movement.common_len_stddev,
+					movement.before_count,
+					movement.after_count,
+				).expect("Failed to write to identifier movement file");
 			}
 		}
 	}
-
-	if let Some(lang) = max_common_lang {
-		if max_common >= min_common_count && max_common_pct >= common_threshold {
-			writeln!(
-				writer,
-				"There were {} common symbols from {:?} ({:.2}%), indicating some level of migration or duplication.",
-				max_common,
-				lang,
-				max_common_pct * 100.0
-			).expect("Failed to write to writer");
-
-			return CodeMovementResult::SignificantCommon(lang, max_common, max_common_pct);
-		} else {
-			writeln!(
-				writer,
-				"Max common is too low for {:?}: {} < {} symbols or {:.2}% < {:.2}%",
-				lang,
-				max_common,
-				min_common_count,
-				max_common_pct * 100.0,
-				common_threshold * 100.0
-			).expect("Failed to write to writer");
-		}
-	}
-
-	CodeMovementResult::NoSignificantMovement
+	writer.finish().expect("Failed to finish writing identifier movement file");
 }
 
-pub fn check_migration_status(
-	mut repo_stats: RepositoryStats,
-	writer: &mut dyn std::io::Write,
-) -> (RustAdditionResult, CodeMovementResult) {
-	let rust_added = test_rust_was_added(writer, &repo_stats, 0.01);
-	let code_moved = test_code_moved_to_rust(writer, &repo_stats, 30, 0.50, 60, 0.05, 0.5);
-
-	repo_stats.symbols.clear();
-	repo_stats.symbols.shrink_to_fit();
-	repo_stats.lang_stats.clear();
-	repo_stats.lang_stats.shrink_to_fit();
-	(rust_added, code_moved)
+pub fn run_analysis(repo_stats: RepositoryStats, pb: &ProgressBar) {
+	pb.set_message(format!("{} Analyzing languages", repo_stats.name));
+	language_presence_analysis(&repo_stats);
+	identifier_analysis(&repo_stats, pb);
 }

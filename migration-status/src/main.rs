@@ -227,74 +227,8 @@ async fn main() {
             name,
             output,
         }) => {
-            let parts: Vec<&str> = name.split('/').collect();
-            if parts.len() != 2 {
-                println!("[{}] Skipping invalid repository name", name);
-                return;
-            }
-
-            let owner = parts[0];
-            let repo = parts[1];
-            let result_folder = format!("{}/{}_{}", output, owner, repo);
-
-            if !Path::new(&result_folder).exists() {
-                fs::create_dir_all(&result_folder).expect("Failed to create output directory");
-            }
-
-            let result_file = format!("{}/result.txt", result_folder);
-            let log_file = format!("{}/log.txt", result_folder);
-
-            if Path::new(&result_file).exists() {
-                println!("[{}] Output already exists, skipping", name);
-                return;
-            }
-
-            let mut log_writer = fs::OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(&log_file)
-                .expect("Failed to create log file");
-
-            let time = chrono::Local::now();
-            log_writer
-                .write_all(format!("Starting analysis for repository: {} at {}\n", name, time).as_bytes())
-                .expect("Failed to write to log file");
-
-            let temp_dir = format!("temp/{}_{}", owner, repo);
-
-            let gather_result = gather::gather_repository_statistics(
-                owner,
-                repo,
-                &temp_dir,
-                100,
-                &mut log_writer.try_clone().expect("Failed to clone log writer")
-            );
-            
-            match gather_result {
-                Ok(stats) => {
-                    let status = analyze::check_migration_status(
-                        stats, 
-                        &mut log_writer.try_clone().expect("Failed to clone log writer")
-                    );
-                    let mut result_writer = fs::OpenOptions::new()
-                        .append(true)
-                        .create(true)
-                        .open(&result_file)
-                        .expect("Failed to create result file");
-
-                    result_writer
-                        .write_all(format!("{:?},{:?}", status.0, status.1).as_bytes())
-                        .expect("Failed to write to result file");
-                    println!("[{}] Result={:?},{:?}", name, status.0, status.1);
-                }
-                Err(e) => {
-                    log_writer
-                        .write_all(format!("Error during gathering: {:?}\n", e).as_bytes())
-                        .expect("Failed to write to log file");
-                    println!("[{}] Error during gathering: {:?}", name, e);
-                }
-            }
-            pipeline::clean_temp_dir(&temp_dir);
+            let pb = indicatif::ProgressBar::new(100);
+            pipeline::run_analysis_for_repo(name, output, &pb);
         }
         Some(Commands::Symbols { input, output }) => {
             pipeline::run_symbols_pipeline(input, output);

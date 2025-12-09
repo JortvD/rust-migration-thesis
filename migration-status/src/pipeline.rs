@@ -11,9 +11,11 @@ use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 
 use rayon::prelude::*;
 
+use crate::analyze;
 use crate::code;
 use crate::code::SupportedLanguage;
 use crate::code::SymbolData;
+use crate::gather;
 use crate::hash;
 
 fn filter_unique_repos(
@@ -67,7 +69,74 @@ pub fn clean_temp_dir(
 	}
 }
 
-const NUM_COMMITS: usize = 100;
+pub fn clean_symbols(
+	results_folder: &str,
+) {
+	let path = Path::new(results_folder);
+	if path.exists() {
+		let entries = fs::read_dir(path).expect("Failed to read results directory");
+
+		for entry in entries {
+			let entry = entry.expect("Failed to read directory entry");
+			let file_name = entry.file_name();
+			let file_name_str = file_name.to_string_lossy();
+
+			if file_name_str.ends_with("symbols.txt") {
+				fs::remove_file(entry.path()).expect("Failed to remove symbols file");
+			}
+		}
+	}
+}
+
+pub fn run_analysis_for_repo(
+	repo_full_name: &str,
+	output_dir: &str,
+	bar: &ProgressBar,
+) {
+	let parts: Vec<&str> = repo_full_name.split('/').collect();
+	if parts.len() != 2 {
+		bar.set_message(format!("{}: Invalid repository name, skipping", repo_full_name));
+		return;
+	}
+
+	let owner = parts[0];
+	let repo = parts[1];
+	let result_folder = format!("{}/{}_{}", output_dir, owner, repo);
+
+	if !Path::new(&result_folder).exists() {
+		fs::create_dir_all(&result_folder).expect("Failed to create output directory");
+	}
+
+	let result_file = format!("{}/identifiers.csv.gz", result_folder);
+
+	if Path::new(&result_file).exists() {
+		bar.set_message(format!("{}: Output already exists, skipping", repo_full_name));
+		return;
+	}
+
+	let temp_dir = format!("temp/{}_{}", owner, repo);
+
+	let gather_result = gather::gather_repository_statistics(
+		owner,
+		repo,
+		&result_folder,
+		&temp_dir,
+		100,
+		bar
+	);
+	
+	match gather_result {
+		Ok(stats) => {
+			analyze::run_analysis(stats, bar);
+			bar.set_message(format!("{}: Completed analysis", repo_full_name));
+		}
+		Err(e) => {
+			bar.set_message(format!("{}: Error during gathering: {:?}", repo_full_name, e));
+		}
+	}
+	clean_temp_dir(&temp_dir);
+	clean_symbols(&result_folder);
+}
 
 pub fn run_analysis_pipeline(
 	input_csv: &str,
@@ -116,15 +185,7 @@ pub fn run_analysis_pipeline(
 		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
 		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
 		bar.set_message(format!("Analyzing {} ({} stars, {:.2}% Rust)", full_name, stars, rust_percentage));
-
-		let status = std::process::Command::new("./target/release/migration-status")
-			.args(&["single", full_name, &output_dir])
-			.status()
-			.expect("Failed to execute cargo command");
-
-		if !status.success() {
-			eprintln!("Failed to analyze repository: {}", full_name);
-		}
+		run_analysis_for_repo(full_name, output_dir, bar);
 		overall_bar.inc(1);
 	});
 	overall_bar.finish_with_message("Analysis completed.");
@@ -232,16 +293,10 @@ pub async fn run_collection_pipeline(
 
 #[derive(Debug)]
 pub enum SymbolsError {
-	ClearTempDirError,
 	ResultsDirError,
 	CloneError,
 	SymbolsGatherError,
 	ResultsWriteError,
-}
-
-fn os_thread_id() -> libc::pid_t {
-    // safe wrapper around syscall(SYS_gettid)
-    unsafe { libc::syscall(libc::SYS_gettid) as libc::pid_t }
 }
 
 pub fn run_symbols_for_repo(
@@ -263,15 +318,15 @@ pub fn run_symbols_for_repo(
 		return Err(SymbolsError::CloneError);
 	}
 
-	if Path::new(&temp_folder).exists() {
-		fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
-	}
+	// if Path::new(&temp_folder).exists() {
+	// 	fs::remove_dir_all(&temp_folder).map_err(|_| SymbolsError::ClearTempDirError)?;
+	// }
 
 	bar.set_message(format!("{}: Cloning", repo_name));
 	let branch = &repo.main_branch;
 
-	//let git_url = format!("git@github.com:{}/{}.git", repo.owner.as_ref().unwrap().login, repo.name);
-	let git_url = format!("https://github.com/{}.git", repo.name);
+	let git_url = format!("git@github.com:{}.git", repo.name);
+	// let git_url = format!("https://github.com/{}.git", repo.name);
 
 	let start_clone_time = std::time::Instant::now();
 	let status = std::process::Command::new("git")
@@ -588,6 +643,10 @@ pub fn run_symbols_hash_pipeline(
 		handles.insert(thread, pb);
 	}
 
+	if Path::new(output).exists() {
+		fs::remove_file(output).expect("Failed to clear output file");
+	}
+	
 	let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
