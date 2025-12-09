@@ -129,6 +129,13 @@ enum Commands {
             default_value = "results/symbols",
         )]
         results: String,
+
+        #[arg(
+            long,
+            help = "Language filter",
+            default_value = "Rust",
+        )]
+        language: String,
     }
 }
 
@@ -315,8 +322,8 @@ async fn main() {
         Some(Commands::SymbolsHash { input, output }) => {
             pipeline::run_symbols_hash_pipeline(input, output); 
         }
-        Some(Commands::SymbolsCompare { from, input, results }) => {
-            hash::find_most_similar(input, results, from);
+        Some(Commands::SymbolsCompare { from, input, results, language }) => {
+            hash::find_most_similar(input, results, from, &language);
         }
     }
 }

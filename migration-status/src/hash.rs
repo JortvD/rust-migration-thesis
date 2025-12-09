@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet, fs::{self, File}, hash::BuildHasherDefault, io::{BufRead, BufReader, BufWriter, Read, Write}, path::{Path, PathBuf}, sync::{Arc, Mutex}
+    collections::{HashMap, HashSet}, fs::{self, File}, hash::BuildHasherDefault, io::{BufRead, BufReader, BufWriter, Read, Write}, path::{Path, PathBuf}, sync::{Arc, Mutex}
 };
 
 use flate2::bufread::GzDecoder;
@@ -27,9 +27,13 @@ struct MatchOptions {
 	exclude_languages: Option<HashSet<String>>,
 }
 
-fn scan_repo_identifiers<F>(folder: &Path, mut callback: F, options: &MatchOptions)
+const LANGUAGES: [&str; 24] = [
+    "Rust", "C", "C++", "C#", "JavaScript", "TypeScript", "TSX", "Python", "Go", "Java", "Swift", "Dart", "Elixir", "Haskell", "Lua", "OCaml", "Ruby", "PHP", "Nix", "Bash", "Scala", "Scala", "Objective-C", "Clojure"
+];
+
+fn scan_repo_identifiers<F>(folder: &Path, mut callback: F)
 where
-    F: FnMut(&str),
+    F: FnMut(&str, &str),
 {
     let paths = fs::read_dir(folder).expect("Failed to read directory");
     
@@ -50,35 +54,41 @@ where
                     Ok(0) => break, // EOF
                     Ok(_) => {
 						let parts: Vec<&str> = line_buffer.split(',').collect();
-						if parts.len() > 3 {
-							let language_part = parts[0].trim();
-							let name_part = parts[3].trim();
+                        if parts.len() < 1 {
+                            continue;
+                        }
+                        let language_part = parts[0].trim();
 
-							// Language filtering
-							if let Some(include_langs) = &options.include_languages {
-								if !include_langs.contains(language_part) {
-									continue;
-								}
-							}
-							if let Some(exclude_langs) = &options.exclude_languages {
-								if exclude_langs.contains(language_part) {
-									continue;
-								}
-							}
-
-							if name_part.len() >= MIN_LENGTH {
-								norm_buffer.clear();
-								// Normalization Logic
-								for c in name_part.chars() {
-									if c != '_' {
-										norm_buffer.push(c.to_ascii_lowercase());
-									}
-								}
-								
-								// Pass normalized string to the callback
-								callback(&norm_buffer);
-							}
-						}
+                        if !LANGUAGES.contains(&language_part) {
+                            continue;
+                        }
+                        let name_part = if parts.len() < 5 {
+                            // Identifier name contains an enter
+                            let mut buffer2: String = String::new();
+                            match decoder.read_line(&mut buffer2) {
+                                Ok(0) => break, // EOF
+                                Ok(_) => buffer2.trim(),
+                                Err(_) => break,
+                            };
+                            let next_line_parts: Vec<&str> = buffer2.split(',').collect();
+                            if next_line_parts.len() < 1 {
+                                continue;
+                            }
+                            format!("{}{}", parts[3].trim(), next_line_parts[0].trim())
+                        }
+						else {
+							parts[3].trim().to_string()
+						};
+                        if name_part.len() >= MIN_LENGTH {
+                            norm_buffer.clear();
+                            for c in name_part.chars() {
+                                if c != '_' && c != '\n' && c != '\r' {
+                                    norm_buffer.push(c.to_ascii_lowercase());
+                                }
+                            }
+                            
+                            callback(&norm_buffer, language_part);
+                        }
                     }
                     Err(_) => break,
                 }
@@ -87,15 +97,12 @@ where
     }
 }
 
-pub fn get_identifiers_for_repo(folder: PathBuf, from: bool) -> HashSet<String> {
+pub fn get_identifiers_for_repo(folder: PathBuf) -> HashSet<String> {
     let mut identifiers = HashSet::new();
     
-    scan_repo_identifiers(&folder, |identifier| {
+    scan_repo_identifiers(&folder, |identifier, _| {
         identifiers.insert(identifier.to_string());
-    }, &MatchOptions {
-		include_languages: if from { Some(HashSet::from(["Rust".to_string()])) } else { None },
-		exclude_languages: if from { None } else { Some(HashSet::from(["Rust".to_string()])) },
-	});
+    });
 
     identifiers
 }
@@ -106,42 +113,43 @@ pub fn hash_for_project(
     bar: &ProgressBar,
 ) {
     let project_name = folder.file_name().unwrap().to_str().unwrap().to_string();
-    
+    bar.set_message(format!("{}: Processing", project_name));
+
     let bh = BuildHasherDefault::<FnvHasher>::default();
-    let mut hasher = SuperMinHash2::<u64, String, _>::new(NUM_HASHES, bh);
+    let mut hasher_map = HashMap::new();
 
-    let mut total_filtered_count: u64 = 0;
-
-    // Use the abstraction here
-    scan_repo_identifiers(&folder, |identifier| {
-        hasher.sketch(&identifier.to_string()).unwrap();
-        total_filtered_count += 1;
-    }, &MatchOptions {
-		include_languages: None,
-		exclude_languages: None,
-	});
+    scan_repo_identifiers(&folder, |identifier, language| {
+        let entry = hasher_map.entry(language.to_string()).or_insert_with(|| {
+            SuperMinHash2::<u64, String, _>::new(NUM_HASHES, bh.clone())
+        });
+        entry.sketch(&identifier.to_string()).unwrap();
+    });
     
+    bar.set_message(format!("{}: Writing for {} languages", project_name, hasher_map.len()));
     bar.inc(1);
-    bar.set_message(format!("{}: Processed identifiers", project_name));
 
-    let minhash = hasher.get_hsketch();
-    
-    // ... rest of the writing logic ...
     let mut writer = output.lock().unwrap();
-    let name_bytes = project_name.as_bytes();
-    writer.write_all(&(name_bytes.len() as u32).to_le_bytes()).unwrap();
-    writer.write_all(name_bytes).unwrap();
-    writer.write_all(&total_filtered_count.to_le_bytes()).unwrap();
-    writer.write_all(&(minhash.len() as u32).to_le_bytes()).unwrap();
-    for hash in minhash {
-        writer.write_all(&hash.to_le_bytes()).unwrap();
+
+    for (language, hasher) in hasher_map.iter() {
+        let minhash = hasher.get_hsketch();
+    
+        let name_bytes = project_name.as_bytes();
+        writer.write_all(&(name_bytes.len() as u32).to_le_bytes()).unwrap();
+        writer.write_all(name_bytes).unwrap();
+        let lang_bytes = language.as_bytes();
+        writer.write_all(&(lang_bytes.len() as u32).to_le_bytes()).unwrap();
+        writer.write_all(lang_bytes).unwrap();
+        writer.write_all(&(minhash.len() as u32).to_le_bytes()).unwrap();
+        for hash in minhash {
+            writer.write_all(&hash.to_le_bytes()).unwrap();
+        }
     }
 }
 
 #[derive(Debug)]
 struct HashData {
     project: String,
-    size: u64,
+    language: String,
     hashes: Vec<u64>,
 }
 
@@ -155,21 +163,22 @@ fn read_hash_data(file_path: &str) -> Vec<HashData> {
             Ok(n) => n,
             Err(_) => break,
         };
-
         let mut name_buffer = vec![0u8; name_len as usize];
         if reader.read_exact(&mut name_buffer).is_err() { break; }
         let project = String::from_utf8_lossy(&name_buffer).to_string();
 
-        let size = match read_u64(&mut reader) {
-            Ok(s) => s,
+        let lang_len = match read_u32(&mut reader) {
+            Ok(n) => n,
             Err(_) => break,
         };
+        let mut lang_buffer = vec![0u8; lang_len as usize];
+        if reader.read_exact(&mut lang_buffer).is_err() { break; }
+        let language = String::from_utf8_lossy(&lang_buffer).to_string();
 
         let hash_count = match read_u32(&mut reader) {
             Ok(c) => c,
             Err(_) => break,
         };
-
         let mut hashes = Vec::with_capacity(hash_count as usize);
         for _ in 0..hash_count {
              match read_u64(&mut reader) {
@@ -180,7 +189,7 @@ fn read_hash_data(file_path: &str) -> Vec<HashData> {
 
         data.push(HashData {
             project,
-            size,
+            language,
             hashes,
         });
     }
@@ -192,12 +201,18 @@ pub fn find_most_similar(
     results_file: &str,
 	results_folder: &str,
     name: &str,
+    langauge: &str,
 ) {
-    println!("Loading binary data...");
+    let start_time = std::time::Instant::now();
     let hash_data_list = read_hash_data(results_file);
+    println!(
+        "Loaded {} hash data entries in {:.2?}",
+        hash_data_list.len(),
+        start_time.elapsed()
+    );
     
     let from: Option<&HashData> = hash_data_list.iter()
-        .find(|hd| hd.project == name);
+        .find(|hd| hd.project == name && hd.language == langauge);
 
     if from.is_none() {
         println!("Project {} not found in hash data.", name);
@@ -220,59 +235,13 @@ pub fn find_most_similar(
 
     results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    println!("Most similar to {} (processed {} items):", item.project, item.size);
-	let from_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, item.project)), true);
-	let mut similar = Vec::new();
     for (i, (similarity, hash_data)) in results.iter().take(250).enumerate() {
-		let to_identifiers = get_identifiers_for_repo(PathBuf::from(&format!("{}/{}", results_folder, hash_data.project)), false);
-		let common: HashSet<_> = from_identifiers.intersection(&to_identifiers).collect();
-		let common_count = common.len();
-		let union_count = from_identifiers.union(&to_identifiers).count();
-		let jaccard_index = if union_count > 0 {
-			common_count as f64 / union_count as f64
-		} else {
-			0.0
-		};
-		let percentage_from = if from_identifiers.len() > 0 {
-			common_count as f64 / from_identifiers.len() as f64 * 100.0
-		} else {
-			0.0
-		};
-		let percentage_to = if to_identifiers.len() > 0 {
-			common_count as f64 / to_identifiers.len() as f64 * 100.0
-		} else {
-			0.0
-		};
-		similar.push((i, hash_data, *similarity, common_count, jaccard_index, percentage_from, percentage_to));
-        // println!(
-        //     "  {}. {} - Similarity: {:.4} (Size: {}) - Common Identifiers: {} (Jaccard Index: {:.4}, From: {:.2}%, To: {:.2}%)",
-        //     i + 1,
-        //     hash_data.project,
-        //     similarity,
-        //     hash_data.size,
-		// 	common_count,
-		// 	jaccard_index,
-		// 	percentage_from,
-		// 	percentage_to
-        // );
-		// let mut common: Vec<_> = common.into_iter().collect();
-		// common.sort_by(|a, b| b.len().cmp(&a.len()));
-        // for common_identifier in common.iter().take(5) {
-		// 	println!("    Common Identifier: {}", common_identifier);
-		// }
+         println!(
+            "  {}. {} for {} - Similarity: {:.4}",
+            i + 1,
+            hash_data.project,
+            hash_data.language,
+            similarity,
+        );
     }
-	similar.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap_or(std::cmp::Ordering::Equal));
-	for (i, hash_data, similarity, common_count, jaccard_index, percentage_from, percentage_to) in similar.iter().take(30) {
-		println!(
-			"  {}. {} - Similarity: {:.4} (Size: {}) - Common Identifiers: {} (Jaccard Index: {:.4}, From: {:.2}%, To: {:.2}%)",
-			i + 1,
-			hash_data.project,
-			similarity,
-			hash_data.size,
-			common_count,
-			jaccard_index,
-			percentage_from,
-			percentage_to
-		);
-	}
 }
