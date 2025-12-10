@@ -74,7 +74,7 @@ fn select_evenly_spread_commits_and_checkout_each(
     temp_dir: &str, 
     num_commits: usize, 
     bar: &ProgressBar,
-    func: Arc<dyn Fn(usize, &String) -> bool + Send + Sync + 'static>,
+    func: &mut dyn FnMut(usize, &String) -> bool,
 )-> Result<(), GatherError> {
     if !Path::new(temp_dir).exists() {
         fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
@@ -106,7 +106,7 @@ fn select_evenly_spread_commits_and_checkout_each(
     }
 
     let indices = sample_indices(commit_count, num_commits).into_iter().rev().collect::<Vec<_>>();
-    let func_arc = Arc::clone(&func);
+    // let func_arc = Arc::clone(&func);
 
     for (i, commit_index) in indices.into_iter().enumerate() {
         let commit_id = commits[commit_index];
@@ -119,49 +119,50 @@ fn select_evenly_spread_commits_and_checkout_each(
         // bar.set_message(format!("{}: {}_{} - Checked out commit {} at {}", i, owner, repo, &commit.id().to_string()[..8], chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error")));
         bar.inc(1);
 
-        let (tx, rx) = mpsc::channel();
-        let func_clone = Arc::clone(&func_arc);
-        let dir_clone = temp_repo_dir.clone();
+        func(i, &temp_repo_dir);
+        // let (tx, rx) = mpsc::channel();
+        // let func_clone = Arc::clone(&func_arc);
+        // let dir_clone = temp_repo_dir.clone();
 
-        thread::spawn(move || {
-            let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                (func_clone)(i, &dir_clone)
-            }));
+        // thread::spawn(move || {
+        //     let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        //         func_clone(i, &dir_clone)
+        //     }));
             
-            let _ = tx.send(result);
-        });
+        //     let _ = tx.send(result);
+        // });
 
-        let should_continue = match rx.recv_timeout(Duration::from_secs(15 * 60)) {
-            // Case 1: Function completed successfully
-            Ok(Ok(result)) => {
-                bar.set_message(format!("{}: {}_{} - Finished gathering data", i, owner, repo));
-                result
-            },
+        // let should_continue = match rx.recv_timeout(Duration::from_secs(15 * 60)) {
+        //     // Case 1: Function completed successfully
+        //     Ok(Ok(result)) => {
+        //         bar.set_message(format!("{}: {}_{} - Finished gathering data", i, owner, repo));
+        //         result
+        //     },
             
-            // Case 2: Function panicked (crashed)
-            Ok(Err(_panic_payload)) => {
-                bar.set_message(format!("{}: {}_{} - WORKER PANICKED (skipping)", i, owner, repo));
-                // You could optionally log _panic_payload here if you want details
-                true // Continue to next commit
-            },
+        //     // Case 2: Function panicked (crashed)
+        //     Ok(Err(_panic_payload)) => {
+        //         bar.set_message(format!("{}: {}_{} - WORKER PANICKED (skipping)", i, owner, repo));
+        //         // You could optionally log _panic_payload here if you want details
+        //         true // Continue to next commit
+        //     },
 
-            // Case 3: Timeout reached
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                bar.set_message(format!("{}: {}_{} - TIMED OUT (skipping)", i, owner, repo));
-                true // Continue to next commit
-            },
+        //     // Case 3: Timeout reached
+        //     Err(mpsc::RecvTimeoutError::Timeout) => {
+        //         bar.set_message(format!("{}: {}_{} - TIMED OUT (skipping)", i, owner, repo));
+        //         true // Continue to next commit
+        //     },
 
-            // Case 4: Channel disconnected without sending (rare, usually covered by panic catch above)
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                bar.set_message(format!("{}: {}_{} - Thread disconnected unexpectedly", i, owner, repo));
-                true
-            }
-        };
+        //     // Case 4: Channel disconnected without sending (rare, usually covered by panic catch above)
+        //     Err(mpsc::RecvTimeoutError::Disconnected) => {
+        //         bar.set_message(format!("{}: {}_{} - Thread disconnected unexpectedly", i, owner, repo));
+        //         true
+        //     }
+        // };
         bar.inc(1);
 
-        if !should_continue {
-            break;
-        }
+        // if !should_continue {
+        //     break;
+        // }
     }
 
     Ok(())
@@ -219,24 +220,31 @@ pub fn gather_repository_statistics(
 ) -> Result<RepositoryStats, GatherError> {
     let repo_name = format!("{}/{}", owner, repo);
 
-    let symbols_arc: Arc<Mutex<Vec<HashSet<code::SupportedLanguage>>>> = Arc::new(Mutex::new(Vec::new()));
-    let lang_stats_arc: Arc<Mutex<Vec<HashMap<LanguageType, (f64, usize, usize, usize)>>>> = Arc::new(Mutex::new(Vec::new()));
+    // let symbols_arc: Arc<Mutex<Vec<HashSet<code::SupportedLanguage>>>> = Arc::new(Mutex::new(Vec::new()));
+    // let lang_stats_arc: Arc<Mutex<Vec<HashMap<LanguageType, (f64, usize, usize, usize)>>>> = Arc::new(Mutex::new(Vec::new()));
 
-    let res_dir = result_dir.to_string();
-    let symbols_clone = Arc::clone(&symbols_arc);
-    let lang_stats_clone = Arc::clone(&lang_stats_arc);
+    // let res_dir = result_dir.to_string();
+    // let symbols_clone = Arc::clone(&symbols_arc);
+    // let lang_stats_clone = Arc::clone(&lang_stats_arc);
 
-    let func: Arc<dyn Fn(usize, &String) -> bool + Send + Sync + 'static> = Arc::new(move |i: usize, dir: &String| {
-        let analyze_result = analyze_commit(&res_dir, i, dir);
-        symbols_clone.lock().unwrap().push(analyze_result.symbols);
-        lang_stats_clone.lock().unwrap().push(analyze_result.lang_stats);
+    // let func: Arc<dyn Fn(usize, &String) -> bool + Send + Sync + 'static> = Arc::new(move |i: usize, dir: &String| {
+    //     let analyze_result = analyze_commit(&res_dir, i, dir);
+    //     symbols_clone.lock().unwrap().push(analyze_result.symbols);
+    //     lang_stats_clone.lock().unwrap().push(analyze_result.lang_stats);
+    //     true
+    // });
+    let mut symbols = Vec::new();
+    let mut lang_stats = Vec::new();
+
+    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, bar, &mut |i: usize, dir: &String| {
+        let analyze_result = analyze_commit(&result_dir, i, dir);
+        symbols.push(analyze_result.symbols);
+        lang_stats.push(analyze_result.lang_stats);
         true
-    });
+    })?;
 
-    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, bar, func)?;
-
-    let symbols = symbols_arc.lock().unwrap().clone();
-    let lang_stats = lang_stats_arc.lock().unwrap().clone();
+    // let symbols = symbols_arc.lock().unwrap().clone();
+    // let lang_stats = lang_stats_arc.lock().unwrap().clone();
 
     Ok(RepositoryStats {
         length: lang_stats.len(),
