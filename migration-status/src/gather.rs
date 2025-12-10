@@ -82,13 +82,11 @@ fn select_evenly_spread_commits_and_checkout_each(
 
     let temp_repo_dir = format!("{}/{}_{}", temp_dir, owner, repo);
 
-    bar.set_message(format!("{}: Cloning repository", repo));
-    bar.inc(1);
     let repo_info =
         repository::BareRepositoryInfo::clone_or_open(&bar, owner, repo, &temp_repo_dir)
             .map_err(|_| GatherError::RepositoryCloneError)?;
 
-    bar.set_message(format!("{}: Getting main branch", repo));
+    bar.set_message(format!("{}_{}: Getting main branch", owner, repo));
     bar.inc(1);
     let main_branch = repo_info
         .get_main_branch()
@@ -99,7 +97,7 @@ fn select_evenly_spread_commits_and_checkout_each(
         .map_err(|_| GatherError::RevwalkError)?;
 
     let commit_count = commits.len();
-    bar.set_message(format!("{}: Branch {} has {} commits", repo, main_branch, commit_count));
+    bar.set_message(format!("{}_{}: Branch {} has {} commits", owner, repo, main_branch, commit_count));
 
     if commit_count == 0 {
         return Ok(());
@@ -158,6 +156,7 @@ fn select_evenly_spread_commits_and_checkout_each(
         //         true
         //     }
         // };
+        bar.set_message(format!("{}: {}_{} - Finished gathering data", i, owner, repo));
         bar.inc(1);
 
         // if !should_continue {
