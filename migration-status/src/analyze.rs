@@ -1,9 +1,16 @@
-use std::{collections::{HashMap, HashSet}, fs, io::BufRead};
+use std::{collections::{HashMap, HashSet}, fs, hash::{DefaultHasher, Hash}, io::BufRead};
+use std::hash::Hasher;
 use std::io::Write;
 use indicatif::ProgressBar;
 use meansd::MeanSD;
 
 use crate::{code, gather::RepositoryStats};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CompactSymbol {
+    hash: u64,
+    len: u32,
+}
 
 struct SymbolMovement {
 	moved_count: usize,
@@ -21,16 +28,16 @@ struct SymbolAnalysis {
 }
 
 fn analyze_symbols (
-	symbols_before: &HashMap<code::SupportedLanguage, HashSet<String>>,
-	symbols_after: &HashMap<code::SupportedLanguage, HashSet<String>>,
+	symbols_before: &HashMap<code::SupportedLanguage, HashSet<CompactSymbol>>,
+	symbols_after: &HashMap<code::SupportedLanguage, HashSet<CompactSymbol>>,
 ) -> SymbolAnalysis {
 
 	let mut movement = HashMap::new();
 
-	let mut after_symbol_counts: HashMap<&String, usize> = HashMap::new();
+	let mut after_symbol_counts: HashMap<u64, usize> = HashMap::new();
     for names in symbols_after.values() {
         for name in names {
-            *after_symbol_counts.entry(name).or_insert(0) += 1;
+            *after_symbol_counts.entry(name.hash).or_insert(0) += 1;
         }
     }
 
@@ -44,12 +51,12 @@ fn analyze_symbols (
 			for symbol in names_before {
                 if names_after.contains(symbol) {
                     common_count += 1;
-                    common_meansd.update(symbol.len() as f64);
+                    common_meansd.update(symbol.len as f64);
 
-                    if let Some(&count) = after_symbol_counts.get(symbol) {
+                    if let Some(&count) = after_symbol_counts.get(&symbol.hash) {
                         if count == 1 {
                             moved_count += 1;
-                            moved_meansd.update(symbol.len() as f64);
+                            moved_meansd.update(symbol.len as f64);
                         }
                     }
                 }
@@ -106,20 +113,33 @@ fn language_presence_analysis(repo_stats: &RepositoryStats) {
 	writer.finish().expect("Failed to finish writing language presence file");
 }
 
+fn compute_compact_symbol(text: &str) -> CompactSymbol {
+    let mut s = DefaultHasher::new();
+    text.hash(&mut s);
+    CompactSymbol {
+        hash: s.finish(),
+        len: text.len() as u32,
+    }
+}
+
 fn get_symbols(
     results_folder: &str,
     index: usize,
     languages: &HashSet<code::SupportedLanguage>,
-) -> HashMap<code::SupportedLanguage, HashSet<String>> {
+) -> HashMap<code::SupportedLanguage, HashSet<CompactSymbol>> {
     let mut symbols_map = HashMap::new();
     for lang in languages {
         let file_path = format!("{}/{}_{}_symbols.txt", results_folder, index, lang.to_string());
         
-        if let Ok(content) = std::fs::read_to_string(&file_path) {
-            let mut symbols_set = HashSet::new();
-            for line in content.lines() {
-                symbols_set.insert(line.to_string());
-            }
+        if let Ok(file) = fs::File::open(&file_path) {
+            let reader = std::io::BufReader::new(file);
+            
+            let symbols_set: HashSet<CompactSymbol> = reader
+                .lines()
+                .filter_map(|line| line.ok()) 
+                .map(|line| compute_compact_symbol(&line)) 
+                .collect();
+            
             symbols_map.insert(*lang, symbols_set);
         }
     }
@@ -139,13 +159,16 @@ fn identifier_analysis(
 			before_idx,
 			&repo_stats.symbols[before_idx].iter().cloned().collect()
 		);
+
 		for after_idx in (before_idx + 1)..length {
 			pb.set_message(format!("{}->{}: {} analyzing identifiers", before_idx, after_idx, repo_stats.name));
+
 			let symbols_after = get_symbols(
 				&repo_stats.results_folder,
 				after_idx,
 				&repo_stats.symbols[after_idx].iter().cloned().collect()
 			);
+			
 			let analysis = analyze_symbols(&symbols_before, &symbols_after);
 			for ((lang_before, lang_after), movement) in analysis.movement.iter() {
 				writeln!(
