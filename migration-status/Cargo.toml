@@ -24,6 +24,7 @@ plotters = "0.3.7"
 probminhash = "0.1.12"
 rayon = "1.11.0"
 tar = "0.4.44"
+thread = "0.0.1"
 tokei = "12.1.2"
 tokio = { version = "1.48.0", features = ["full"] }
 tree-sitter = "0.25.10"

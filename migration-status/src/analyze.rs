@@ -24,35 +24,44 @@ fn analyze_symbols (
 	symbols_before: &HashMap<code::SupportedLanguage, HashSet<String>>,
 	symbols_after: &HashMap<code::SupportedLanguage, HashSet<String>>,
 ) -> SymbolAnalysis {
+
 	let mut movement = HashMap::new();
-	for lang_before in symbols_before.keys() {
-		for lang_after in symbols_after.keys() {
-			let names_before = &symbols_before[lang_before];
-			let names_after = &symbols_after[lang_after];
 
-			let intersection = names_before.intersection(&names_after).collect::<HashSet<_>>();
+	let mut after_symbol_counts: HashMap<&String, usize> = HashMap::new();
+    for names in symbols_after.values() {
+        for name in names {
+            *after_symbol_counts.entry(name).or_insert(0) += 1;
+        }
+    }
 
-			let other_names_after = symbols_after.iter()
-				.filter(|s| *s.0 != *lang_after)
-				.flat_map(|s| s.1.iter())
-				.collect::<HashSet<_>>();
-
-			let moved = intersection.difference(&other_names_after).collect::<HashSet<_>>();
-
+	for (lang_before, names_before) in symbols_before {
+		for (lang_after, names_after) in symbols_after {
 			let mut common_meansd = MeanSD::default();
-			intersection.iter()
-				.for_each(|s| { common_meansd.update(s.len() as f64); });
-			let mut moved_meansd = MeanSD::default();
-			moved.iter()
-				.for_each(|s| { moved_meansd.update(s.len() as f64); });
+            let mut moved_meansd = MeanSD::default();
+            let mut common_count = 0;
+            let mut moved_count = 0;
+
+			for symbol in names_before {
+                if names_after.contains(symbol) {
+                    common_count += 1;
+                    common_meansd.update(symbol.len() as f64);
+
+                    if let Some(&count) = after_symbol_counts.get(symbol) {
+                        if count == 1 {
+                            moved_count += 1;
+                            moved_meansd.update(symbol.len() as f64);
+                        }
+                    }
+                }
+            }
 
 			movement.insert(
 				(*lang_before, *lang_after),
 				SymbolMovement {
-					common_count: intersection.len(),
+					common_count,
 					common_len_mean: common_meansd.mean(),
 					common_len_stddev: common_meansd.sstdev(),
-					moved_count: moved.len(),
+					moved_count,
 					moved_len_mean: moved_meansd.mean(),
 					moved_len_stddev: moved_meansd.sstdev(),
 					before_count: names_before.len(),
@@ -74,7 +83,7 @@ fn get_results_file_writer(results_folder: &str, name: &str) -> flate2::write::G
 		.append(true)
 		.open(format!("{}/{}.csv.gz", results_folder, name))
 		.expect("Failed to open language presence file");
-	let buf_writer = std::io::BufWriter::new(file);
+	let buf_writer = std::io::BufWriter::with_capacity(64 * 1024, file);
 	flate2::write::GzEncoder::new(buf_writer, flate2::Compression::default())
 }
 
@@ -131,7 +140,7 @@ fn identifier_analysis(
 			&repo_stats.symbols[before_idx].iter().cloned().collect()
 		);
 		for after_idx in (before_idx + 1)..length {
-			pb.set_message(format!("from {}: {} analyzing identifiers", before_idx, repo_stats.name));
+			pb.set_message(format!("{}->{}: {} analyzing identifiers", before_idx, after_idx, repo_stats.name));
 			let symbols_after = get_symbols(
 				&repo_stats.results_folder,
 				after_idx,

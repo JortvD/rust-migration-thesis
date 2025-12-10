@@ -227,7 +227,9 @@ async fn main() {
             name,
             output,
         }) => {
-            let pb = indicatif::ProgressBar::new(100);
+            let pb = indicatif::ProgressBar::new(0);
+            pb.set_style(indicatif::ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}").unwrap()
+                .progress_chars("#>-"));
             pipeline::run_analysis_for_repo(name, output, &pb);
         }
         Some(Commands::Symbols { input, output }) => {

@@ -189,7 +189,7 @@ pub fn extract_symbols_for_language(
     symbols
 }
 
-pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<(HashSet<SupportedLanguage>, usize, usize), Box<dyn std::error::Error>> {
+pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<HashSet<SupportedLanguage>, Box<dyn std::error::Error>> {
     let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
     let mut file_count = 0;
     let mut symbol_count = 0;
@@ -231,6 +231,9 @@ pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<(Has
             Ok(s) => s,
             Err(_) => continue,
         };
+        if src.len() > 10_000_000 {
+            continue;
+        }
 
         let mut symbols = extract_symbols_for_language(parser, &src);
         
@@ -258,11 +261,7 @@ pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<(Has
         file_count += 1;
     }
 
-    Ok((
-        parser_map.keys().cloned().collect(),
-        symbol_count,
-        file_count,
-    ))
+    Ok(parser_map.keys().cloned().collect())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

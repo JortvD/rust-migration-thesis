@@ -2151,6 +2151,7 @@ dependencies = [
  "probminhash",
  "rayon",
  "tar",
+ "thread",
  "tokei",
  "tokio",
  "tree-sitter",
@@ -3893,6 +3894,12 @@ name = "thousands"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bf63baf9f5039dadc247375c29eb13706706cfde997d0330d05aa63a77d8820"
+
+[[package]]
+name = "thread"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f06beb703bd1c46f3cc8afdf4e3d0f932ec413289204f9f74715023da8acb5f"
 
 [[package]]
 name = "thread_local"
