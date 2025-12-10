@@ -164,7 +164,7 @@ pub fn extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        if kind.contains("identifier") {
+        if kind.contains("identifier") && node.end_byte() < source.as_bytes().len() {
             if let Ok(text) = node.utf8_text(source.as_bytes()) {
                 let normalized = normalize_name(text);
                 if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
@@ -231,9 +231,6 @@ pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<Hash
             Ok(s) => s,
             Err(_) => continue,
         };
-        if src.len() > 10_000_000 {
-            continue;
-        }
 
         let mut symbols = extract_symbols_for_language(parser, &src);
         
