@@ -7,7 +7,7 @@ use fnv::FnvHasher;
 use indicatif::ProgressBar;
 use probminhash::superminhasher2::{get_jaccard_index_estimate, SuperMinHash2};
 
-const MIN_LENGTH: usize = 5;
+const MIN_LENGTH: usize = 10;
 const NUM_HASHES: usize = 1024;
 
 fn read_u32<R: Read>(reader: &mut R) -> std::io::Result<u32> {
