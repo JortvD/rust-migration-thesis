@@ -654,13 +654,30 @@ pub fn run_symbols_hash_pipeline(
         .expect("Failed to open output file");
     
     let writer = Arc::new(Mutex::new(BufWriter::new(file)));
+	let panic_writer = Arc::new(Mutex::new(BufWriter::new(fs::OpenOptions::new()
+		.create(true)
+		.write(true)
+		.open("panic_log.txt")
+		.expect("Failed to open panic log file"))));
 	
 	folders.par_iter().for_each(|dir| {
 		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
 		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
-mp.suspend(|| {
-		hash::hash_for_project(dir.to_path_buf(), &writer, bar);
-		});
+
+		// Clone shared writer and progress bar for use in this Rayon worker
+		let w = Arc::clone(&writer);
+		let bar_clone = bar.clone();
+
+		// Run hashing directly in the Rayon worker and catch panics (replace spawning std threads)
+		if let Err(e) = std::panic::catch_unwind(|| {
+			hash::hash_for_project(dir.to_path_buf(), &w, &bar_clone);
+		}) {
+			let mut pw = panic_writer.lock().unwrap();
+			pw.write_all(format!("Panic occurred while processing {:?}: {:?}\n", dir, e).as_bytes())
+				.expect("Failed to write to panic log");
+			pw.flush().expect("Failed to flush panic log");
+		}
+
 		overall_bar.inc(1);
 	});
 
