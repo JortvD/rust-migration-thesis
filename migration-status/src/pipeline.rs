@@ -658,6 +658,7 @@ pub fn run_symbols_hash_pipeline(
 	folders.par_iter().for_each(|dir| {
 		let current_thread_id = rayon::current_thread_index().unwrap_or(0);
 		let bar: &ProgressBar = handles.get(&current_thread_id).unwrap();
+mp.suspend(|| {
 		hash::hash_for_project(dir.to_path_buf(), &writer, bar);
 		overall_bar.inc(1);
 	});
