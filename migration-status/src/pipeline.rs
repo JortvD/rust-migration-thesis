@@ -673,7 +673,21 @@ pub fn run_symbols_hash_pipeline(
 			hash::hash_for_project(dir.to_path_buf(), &w, &bar_clone);
 		}) {
 			let mut pw = panic_writer.lock().unwrap();
-			pw.write_all(format!("Panic occurred while processing {:?}: {:?}\n", dir, e).as_bytes())
+			let panic_msg = if let Some(s) = e.downcast_ref::<&str>() {
+				s.to_string()
+			} else if let Some(s) = e.downcast_ref::<String>() {
+				s.clone()
+			} else {
+				format!("{:?}", e)
+			};
+			let backtrace = std::backtrace::Backtrace::capture();
+			pw.write_all(
+				format!(
+					"Panic occurred while processing {:?}: {}\nBacktrace:\n{:?}\n",
+					dir, panic_msg, backtrace
+				)
+				.as_bytes(),
+			)
 				.expect("Failed to write to panic log");
 			pw.flush().expect("Failed to flush panic log");
 		}
