@@ -7,7 +7,7 @@ use fnv::FnvHasher;
 use indicatif::ProgressBar;
 use probminhash::superminhasher2::{get_jaccard_index_estimate, SuperMinHash2};
 
-const MIN_LENGTH: usize = 10;
+const MIN_LENGTH: usize = 0;
 const NUM_HASHES: usize = 1024;
 
 fn read_u32<R: Read>(reader: &mut R) -> std::io::Result<u32> {
@@ -49,7 +49,7 @@ where
                     Ok(0) => break, // EOF
                     Ok(_) => {
 						let parts: Vec<&str> = line_buffer.split(',').collect();
-                        if parts.len() < 1 {
+                        if parts.len() < 4 {
                             continue;
                         }
                         let language_part = parts[0].trim();
@@ -114,6 +114,9 @@ pub fn hash_for_project(
     let mut hasher_map = HashMap::new();
 
     scan_repo_identifiers(&folder, |identifier, language| {
+        if !identifier.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return;
+        }
         let entry = hasher_map.entry(language.to_string()).or_insert_with(|| {
             SuperMinHash2::<u64, String, _>::new(NUM_HASHES, bh.clone())
         });
@@ -142,13 +145,13 @@ pub fn hash_for_project(
 }
 
 #[derive(Debug)]
-struct HashData {
-    project: String,
-    language: String,
-    hashes: Vec<u64>,
+pub struct HashData {
+    pub project: String,
+    pub language: String,
+    pub hashes: Vec<u64>,
 }
 
-fn read_hash_data(file_path: &str) -> Vec<HashData> {
+pub fn read_hash_data(file_path: &str) -> Vec<HashData> {
     let file = File::open(file_path).expect("Failed to open binary hashes file");
     let mut reader = BufReader::with_capacity(1024 * 1024, file);
     let mut data = Vec::new();
@@ -214,7 +217,7 @@ pub fn find_most_similar(
         return;
     }
     let item = from.unwrap();
-
+    let start_time = std::time::Instant::now();
     let mut results = Vec::with_capacity(hash_data_list.len());
     
     for hash_data in &hash_data_list {
@@ -231,7 +234,7 @@ pub fn find_most_similar(
 
     results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    println!("Most similar projects to {} (language: {}):", name, langauge);
+    println!("Most similar projects to {} (language: {}, computed in {} ms):", name, langauge, start_time.elapsed().as_millis());
     for (i, (similarity, hash_data)) in results.iter().take(15).enumerate() {
          println!(
             "  {}. {} for {} - Similarity: {:.4}",
