@@ -1,6 +1,7 @@
 use git2::{FetchOptions, RemoteCallbacks};
 use git2::{Repository, build::RepoBuilder};
 use indicatif::ProgressBar;
+use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
 use std::time::Instant;
 
