@@ -5,6 +5,12 @@ check-migrate/results/*
 target/
 migration-status/temp/*
 migration-status/temp_symbols/*
+migration-status/temp_identifiers/*
 migration-status/results/*
 migration-status/tests/*
 migration-status/.env
+
+sonar/input*
+sonar/results/*
+sonar/temp/*
+sonar/.env
