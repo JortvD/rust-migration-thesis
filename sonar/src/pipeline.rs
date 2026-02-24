@@ -64,7 +64,22 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 		let commit_oid = commits[*index];
 		let commit = match repo.checkout_commit(commit_oid, &main_branch) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(err) => {
+				bar.set_message(format!("{} [{}/{}] Failed to checkout commit {}: {}, skipping...", name, i + 1, indices.len(), &commit_oid.to_string()[..8], err));
+				commits_file_wtr.write_all(format!(
+					"{},{},{},{},{},{},{},{},Checkout failed: {}\n", 
+					i,
+					commit_oid, 
+					"N/A",
+					"N/A",
+					0,
+					0,
+					0,
+					0,
+					err
+				).as_bytes()).map_err(|_| PipelineError::FileError)?;
+				continue;
+			}
         };
 		let checkout_ms = start_time.elapsed().as_millis();
 		bar.set_message(format!("{} [{}/{}] Checked out commit {} in {} ms, running analysis...", name, i + 1, indices.len(), &commit.id().to_string()[..8], checkout_ms));
