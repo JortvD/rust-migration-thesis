@@ -1,4 +1,6 @@
-use std::{fs::File, fs::remove_file, io::Write};
+use std::{fs::{File, remove_file}, io::Write, time::Duration};
+
+use indicatif::ProgressBar;
 
 use reqwest;
 
@@ -63,22 +65,37 @@ impl Project {
         Ok(output.status.code().unwrap_or(0) as u64)
     }
 
-    pub fn get_results(&self, index: usize) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_results(&self, index: usize, bar: &ProgressBar) -> Result<u64, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let mut page: u64 = 1;
         let mut all_data = serde_json::Map::new();
         all_data.insert("components".to_string(), serde_json::Value::Array(Vec::new()));
         let mut total: u64 = 0;
         loop {
-            let response = client.get(format!("{}/api/measures/component_tree?component={}&metricKeys={}&ps={}&p={}", API_URL, self.name, METRICS, PAGE_SIZE, page))
+            let result = client.get(format!("{}/api/measures/component_tree?component={}&metricKeys={}&ps={}&p={}", API_URL, self.name, METRICS, PAGE_SIZE, page))
                 .bearer_auth(&self.token)
-                .send()?;
+                .timeout(Duration::from_secs(10))
+                .send();
+
+            if let Err(e) = result {
+                bar.set_message(format!("{} [{}/{}] Failed to retrieve results for page {}: {}, retrying...", self.name, index + 1, PAGE_SIZE, page, e));
+                std::thread::sleep(Duration::from_secs(5));
+                continue;
+            }
+            let response = result.unwrap();
+
+            if !response.status().is_success() {
+                bar.set_message(format!("{} [{}/{}] Failed to retrieve results for page {}: HTTP {}, retrying...", self.name, index + 1, PAGE_SIZE, page, response.status()));
+                std::thread::sleep(Duration::from_secs(5));
+                continue;
+            }
 
             let json: serde_json::Value = response.json()?;
             total = json["paging"]["total"].as_u64().unwrap_or(0);
             if page == 1 {
                 all_data.insert("base".to_string(), json["baseComponent"].clone());
             }
+            bar.set_message(format!("{} [{}/{}] Retrieved page {}, checking next...", self.name, index + 1, PAGE_SIZE, page));
             if let Some(components) = json["components"].as_array() {
                 // println!("Page {} has {} items", page, components.len());
                 if let Some(all_components) = all_data.get_mut("components").and_then(|v| v.as_array_mut()) {
@@ -99,6 +116,7 @@ impl Project {
     pub fn get_activity_count(&self) -> Result<u64, Box<dyn std::error::Error>> {
         let response = reqwest::blocking::Client::new().get(format!("{}/api/ce/activity?component={}", API_URL, self.name))
             .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(10))
             .send()?;
         let json: serde_json::Value = response.json()?;
         Ok(json["paging"]["total"].as_u64().unwrap_or(0))

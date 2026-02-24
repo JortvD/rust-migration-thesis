@@ -12,8 +12,7 @@ mod pipeline;
 mod project;
 mod repository;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     let lines = get_input("input.txt")?;
 

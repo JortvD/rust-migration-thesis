@@ -45,6 +45,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar) -> Result<(), PipelineE
 	}
 	let commits_file = format!("{}/commits.csv", results_folder);
 	let mut commits_file_wtr = File::create(&commits_file).map_err(|_| PipelineError::FileError)?;
+	commits_file_wtr.write_all(b"commit_oid,commit_time,commit_summary,checkout_ms,analysis_ms,upload_ms,retrieval_ms\n").map_err(|_| PipelineError::FileError)?;
 
 	let project = Project::create(&data.name, &results_folder).map_err(|_| PipelineError::ProjectError)?;
 
@@ -58,37 +59,57 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar) -> Result<(), PipelineE
 	let indices = sample_indices(commits.len(), MAX_SAMPLES);
 
 	for (i, index) in indices.iter().enumerate() {
+
+		let start_time = std::time::Instant::now();
 		let commit_oid = commits[*index];
 		let commit = match repo.checkout_commit(commit_oid, &main_branch) {
             Ok(c) => c,
             Err(_) => continue,
         };
-
-		bar.set_message(format!("{} [{}/{}] Checked out commit {}, running analysis...", name, i + 1, indices.len(), &commit.id().to_string()[..8]));
-
-		commits_file_wtr.write_all(format!(
-			"{},{},{}\n", 
-			commit_oid, 
-			chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
-			commit.summary().unwrap_or("")
-		).as_bytes()).map_err(|_| PipelineError::FileError)?;
+		let checkout_ms = start_time.elapsed().as_millis();
+		bar.set_message(format!("{} [{}/{}] Checked out commit {} in {} ms, running analysis...", name, i + 1, indices.len(), &commit.id().to_string()[..8], checkout_ms));
 
 		let start_time = std::time::Instant::now();
-
 		let result = project.run_analysis(&repo.dir, i).map_err(|_| PipelineError::ProjectError)?;
-		let analysis_secs = start_time.elapsed().as_secs();
-		bar.set_message(format!("{} [{}/{}] Analysis completed with exit code {} in {} seconds, waiting for upload...", name, i + 1, indices.len(), result, analysis_secs));
+		let analysis_ms = start_time.elapsed().as_millis();
 
+		if result != 0 {
+			bar.set_message(format!("{} [{}/{}] Analysis failed with exit code {} in {} ms, skipping upload and retrieval...", name, i + 1, indices.len(), result, analysis_ms));
+			continue;
+		} else {
+			bar.set_message(format!("{} [{}/{}] Analysis completed with exit code {} in {} ms, waiting for upload...", name, i + 1, indices.len(), result, analysis_ms));
+		}
+		
+		let start_time = std::time::Instant::now();
+		std::thread::sleep(std::time::Duration::from_secs(3));
 		for _ in 0..1000 {
-			let num_completed = project.get_activity_count().map_err(|_| PipelineError::ProjectError)?;
-			if num_completed == i as u64 + 1 {
-				break;
+			if let Ok(num_completed) = project.get_activity_count() {
+				bar.set_message(format!("{} [{}/{}] Waiting {} secs for upload... {}/{} activities completed", name, i + 1, indices.len(), start_time.elapsed().as_secs(), num_completed, indices.len()));
+				if num_completed == i as u64 + 1 {
+					break;
+				}
+			} else {
+				bar.set_message(format!("{} [{}/{}] Waiting {} secs for upload... failed to get activity count", name, i + 1, indices.len(), start_time.elapsed().as_secs()));
 			}
 			std::thread::sleep(std::time::Duration::from_secs(1));
 		}
+		let upload_ms = start_time.elapsed().as_millis();
 
-		let result = project.get_results(i).map_err(|_| PipelineError::ProjectError)?;
+		let start_time = std::time::Instant::now();
+		let result = project.get_results(i, bar).map_err(|_| PipelineError::ProjectError)?;
 		bar.set_message(format!("{} [{}/{}] Retrieved {} items, checking out next...", name, i + 1, indices.len(), result));
+		let retrieval_ms = start_time.elapsed().as_millis();
+
+		commits_file_wtr.write_all(format!(
+			"{},{},{},{},{},{},{}\n", 
+			commit_oid, 
+			chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
+			commit.summary().unwrap_or(""),
+			checkout_ms,
+			analysis_ms,
+			upload_ms,
+			retrieval_ms
+		).as_bytes()).map_err(|_| PipelineError::FileError)?;
 	}
 
 	project.delete().map_err(|_| PipelineError::ProjectError)?;
