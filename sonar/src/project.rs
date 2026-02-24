@@ -31,6 +31,7 @@ impl Project {
 		let mut properties_file_wtr = File::create(&properties_file)?;
         properties_file_wtr.write_all(format!("sonar.projectKey={}\n", self.name).as_bytes())?;
         properties_file_wtr.write_all(b"sonar.exclusions=**/*test*/**/*,**/*test*\n")?;
+        properties_file_wtr.write_all(format!("sonar.projectVersion=v{}\n", index + 1).as_bytes())?;
 
         let output = std::process::Command::new("docker")
             .arg("run")
