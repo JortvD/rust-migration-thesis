@@ -95,6 +95,14 @@ impl Project {
         Ok(total)
     }
 
+    pub fn get_activity_count(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let response = reqwest::blocking::Client::new().get(format!("{}/api/ce/activity?component={}", API_URL, self.name))
+            .bearer_auth(&self.token)
+            .send()?;
+        let json: serde_json::Value = response.json()?;
+        Ok(json["paging"]["total"].as_u64().unwrap_or(0))
+    }
+
     pub fn delete(&self) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let response = client.post(format!("{}/api/projects/delete?project={}", API_URL, self.name))
