@@ -188,7 +188,14 @@ impl BareRepositoryInfo {
             git2::Error::from_str(&format!("Failed waiting for git archive to finish: {}", e))
         })?;
         if !status.success() {
-            return Err(git2::Error::from_str(&format!("git archive failed with status: {:?}", status)));
+            let is_sigpipe = status.signal() == Some(13);
+
+            if !is_sigpipe {
+                return Err(git2::Error::from_str(&format!(
+                    "git archive failed with status: {:?}",
+                    status
+                )));
+            }
         }
 
         Ok(commit)
