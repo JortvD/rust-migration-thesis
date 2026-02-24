@@ -6,7 +6,7 @@ use reqwest;
 
 const METRICS: &str = "files,classes,functions,lines,statements,new_lines,ncloc,comment_lines,comment_lines_density,software_quality_security_issues,new_software_quality_security_issues,software_quality_security_remediation_effort,new_software_quality_security_remediation_effort,software_quality_reliability_issues,new_software_quality_reliability_issues,software_quality_reliability_remediation_effort,new_software_quality_reliability_remediation_effort,software_quality_maintainability_issues,new_software_quality_maintainability_issues,software_quality_maintainability_remediation_effort,new_software_quality_maintainability_remediation_effort,software_quality_maintainability_debt_ratio,new_software_quality_maintainability_debt_ratio,security_hotspots,new_security_hotspots,duplicated_lines_density,new_duplicated_lines_density,duplicated_lines,new_duplicated_lines,duplicated_blocks,new_duplicated_blocks,duplicated_files,complexity,cognitive_complexity,violations,new_violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations";
 const API_URL: &str = "http://49.13.5.68:9000";
-const PAGE_SIZE: usize = 20;
+const PAGE_SIZE: usize = 500;
 
 pub struct Project {
     pub name: String,
@@ -57,10 +57,6 @@ impl Project {
         error_file.write_all(format!("{}", String::from_utf8_lossy(&output.stderr)).as_bytes())?;
 
         remove_file(&properties_file)?;
-
-        if !output.status.success() {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("sonar-scanner failed with status: {}", output.status))));
-        }
 
         Ok(output.status.code().unwrap_or(0) as u64)
     }
@@ -114,7 +110,7 @@ impl Project {
     }
 
     pub fn get_activity_count(&self) -> Result<u64, Box<dyn std::error::Error>> {
-        let response = reqwest::blocking::Client::new().get(format!("{}/api/ce/activity?component={}", API_URL, self.name))
+        let response = reqwest::blocking::Client::new().get(format!("{}/api/project_analyses/search?project={}&ps=500", API_URL, self.name))
             .bearer_auth(&self.token)
             .timeout(Duration::from_secs(10))
             .send()?;
