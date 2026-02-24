@@ -156,6 +156,15 @@ impl BareRepositoryInfo {
         let repo_dir = self.dir.clone();
         let git_dir = format!("{}{}", &repo_dir, ".git");
 
+        if std::path::Path::new(&repo_dir).exists() {
+            std::fs::remove_dir_all(&repo_dir).map_err(|e| {
+                git2::Error::from_str(&format!("Failed to remove working dir {}: {}", repo_dir, e))
+            })?;
+        }
+        std::fs::create_dir_all(&repo_dir).map_err(|e| {
+            git2::Error::from_str(&format!("Failed to create working dir {}: {}", repo_dir, e))
+        })?;
+
         let mut child = Command::new("git")
             .arg("-C")
             .arg(&git_dir)
@@ -167,15 +176,6 @@ impl BareRepositoryInfo {
             .map_err(|e| git2::Error::from_str(&format!("Failed to spawn git archive: {}", e)))?;
 
         if let Some(stdout) = child.stdout.take() {
-            if std::path::Path::new(&repo_dir).exists() {
-                std::fs::remove_dir_all(&repo_dir).map_err(|e| {
-                    git2::Error::from_str(&format!("Failed to remove working dir {}: {}", repo_dir, e))
-                })?;
-            }
-            std::fs::create_dir_all(&repo_dir).map_err(|e| {
-                git2::Error::from_str(&format!("Failed to create working dir {}: {}", repo_dir, e))
-            })?;
-
             let mut archive = tar::Archive::new(stdout);
             archive.unpack(&repo_dir).map_err(|e| {
                 git2::Error::from_str(&format!("Failed to unpack tar archive: {}", e))
