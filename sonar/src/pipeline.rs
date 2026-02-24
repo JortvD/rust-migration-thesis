@@ -38,10 +38,9 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar) -> Result<(), PipelineE
 		create_dir_all(&results_folder).map_err(|_| PipelineError::FileError)?;
 	} else {
 		bar.set_message(format!("Results folder already exists for {}/{}", data.author, data.name));
-		let skipped_file = format!("{}/skipped.txt", results_folder);
-		let mut skipped_file_wtr = File::create(&skipped_file).map_err(|_| PipelineError::FileError)?;
+		let mut skipped_file_wtr = File::create("results/skipped.txt").map_err(|_| PipelineError::FileError)?;
 
-		skipped_file_wtr.write_all(format!("Skipped: {}/{} at {}\n", data.author, data.name, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()).as_bytes()).map_err(|_| PipelineError::FileError)?;
+		skipped_file_wtr.write_all(format!("Skipped: {}/{} at {}\n", data.author, data.name, chrono::Utc::now()).as_bytes()).map_err(|_| PipelineError::FileError)?;
 		return Ok(());
 	}
 	let commits_file = format!("{}/commits.csv", results_folder);
