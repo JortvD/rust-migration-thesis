@@ -16,10 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     let lines = get_input("input.txt")?;
 
-    // rayon::ThreadPoolBuilder::new()
-    //     .num_threads(12)
-    //     .build_global()
-    //     .expect("Failed to create thread pool");
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(11)
+        .build_global()
+        .expect("Failed to create thread pool");
 
     let mp = MultiProgress::new();
 	let overall_bar = mp.add(ProgressBar::new((lines.len() * MAX_SAMPLES) as u64));
