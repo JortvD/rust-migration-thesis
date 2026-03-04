@@ -35,6 +35,13 @@ impl Project {
         properties_file_wtr.write_all(b"sonar.exclusions=**/*test*/**/*,**/*test*\n")?;
         properties_file_wtr.write_all(format!("sonar.projectVersion=v{}\n", index + 1).as_bytes())?;
 
+        if std::path::Path::new(&format!("{}/pom.xml", repo_dir)).exists() {
+            std::process::Command::new("mvn")
+                .arg("verify")
+                .current_dir(repo_dir)
+                .output()?;
+        }
+
         let output = std::process::Command::new("docker")
             .arg("run")
             .arg("--rm")
