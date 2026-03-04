@@ -37,7 +37,8 @@ impl Project {
 
         if std::path::Path::new(&format!("{}/pom.xml", repo_dir)).exists() {
             let output = std::process::Command::new("mvn")
-                .arg("verify")
+                .arg("compile")
+                .arg("-fn")
                 .current_dir(repo_dir)
                 .output()?;
             let log_file_path = format!("{}/{}_mvn_logs.txt", self.results_folder, index);
@@ -47,6 +48,8 @@ impl Project {
             let error_file_path = format!("{}/{}_mvn_errors.txt", self.results_folder, index);
             let mut error_file = File::create(&error_file_path)?;
             error_file.write_all(format!("{}", String::from_utf8_lossy(&output.stderr)).as_bytes())?;
+
+            properties_file_wtr.write_all(b"sonar.java.binaries=**/target/classes\n")?;
         }
 
         let output = std::process::Command::new("docker")
