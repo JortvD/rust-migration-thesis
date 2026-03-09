@@ -60,6 +60,15 @@ enum Commands {
         name: String,
         output: String,
     },
+    Identifiers {
+        name: String,
+        from: usize,
+        to: usize,
+    },
+    Sim {
+        from: String,
+        to: String,
+    },
     Compare {
         from: String,
         to: String,
@@ -136,6 +145,28 @@ enum Commands {
             default_value = "Rust",
         )]
         language: String,
+    },
+    SymbolsCompareAll {
+        #[arg(
+            long,
+            help = "Input binary file path",
+            default_value = "results/symbols_hash_5.bin",
+        )]
+        input: String,
+
+        #[arg(
+            long,
+            help = "Repositories CSV file path",
+            default_value = "results/repositories_correct.csv",
+        )]
+        repositories: String,
+
+        #[arg(
+            long,
+            help = "Output data file",
+            default_value = "results/symbols_compare.csv",
+        )]
+        output: String,
     }
 }
 
@@ -232,6 +263,19 @@ async fn main() {
                 .progress_chars("#>-"));
             pipeline::run_analysis_for_repo(name, output, &pb);
         }
+        Some(Commands::Identifiers {
+            name,
+            from,
+            to,
+        }) => {
+            pipeline::run_identifiers_pipeline(name, *from, *to);
+        }
+        Some(Commands::Sim {
+            from,
+            to,
+        }) => {
+            pipeline::find_similar_symbols(from, to);
+        }
         Some(Commands::Symbols { input, output }) => {
             pipeline::run_symbols_pipeline(input, output);
         }
@@ -260,6 +304,9 @@ async fn main() {
         }
         Some(Commands::SymbolsCompare { from, input, results, language }) => {
             hash::find_most_similar(input, results, from, &language);
+        }
+        Some(Commands::SymbolsCompareAll { input, repositories, output }) => {
+            pipeline::run_symbols_compare_all_pipeline(input, repositories, output);
         }
     }
 }

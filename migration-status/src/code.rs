@@ -164,7 +164,7 @@ pub fn extract_symbols_for_language(
     while let Some(node) = stack.pop() {
         let kind = node.kind();
 
-        if kind.contains("identifier") && node.end_byte() < source.as_bytes().len() {
+        if (kind.contains("identifier") || kind.contains("name")) && node.end_byte() < source.as_bytes().len() {
             if let Ok(text) = node.utf8_text(source.as_bytes()) {
                 let normalized = normalize_name(text);
                 if !normalized.is_empty() && normalized.len() >= MIN_SYMBOL_NAME_LENGTH {
@@ -187,6 +187,59 @@ pub fn extract_symbols_for_language(
     parser.reset();
 
     symbols
+}
+
+pub fn find_symbols_local(root: &Path) -> Result<HashMap<SupportedLanguage, HashSet<String>>, Box<dyn std::error::Error>> {
+    let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
+    let mut symbols_map: HashMap<SupportedLanguage, HashSet<String>> = HashMap::new();
+
+    for entry in WalkDir::new(root).into_iter().filter_entry(|e| {
+        if let Some(name) = e.file_name().to_str() {
+            name != ".git" && name != "target"
+        } else {
+            true
+        }
+    }) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let path: PathBuf = entry.path().into();
+
+        if path.extension().is_none() {
+            continue;
+        }
+
+        let lang = match SupportedLanguage::from_path(&path) {
+            Some(l) => l,
+            None => continue,
+        };
+
+        let parser = parser_map.entry(lang).or_insert_with(|| {
+            let mut p = Parser::new();
+            p.set_language(&lang.ts_language())
+                .expect("Failed to set Tree-sitter language");
+            p
+        });
+        let src = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let mut symbols = extract_symbols_for_language(parser, &src);
+        
+        let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
+        for symbol in symbols.drain() {
+            out_set.insert(symbol);
+        }
+    }
+
+    Ok(symbols_map)
 }
 
 pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<HashSet<SupportedLanguage>, Box<dyn std::error::Error>> {

@@ -132,6 +132,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "git2",
+ "indicatif",
+ "tar",
+]
+
+[[package]]
 name = "console"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1383,6 +1392,7 @@ name = "sonar"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "common",
  "dotenv",
  "git2",
  "indicatif",

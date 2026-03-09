@@ -253,3 +253,53 @@ pub fn gather_repository_statistics(
         results_folder: result_dir.to_string(),
     })
 }
+
+pub fn gather_two_commit_stats(
+    owner: &str,
+    repo: &str,
+    temp_dir: &str,
+    commit_indices: (usize, usize),
+) -> Result<(HashMap<SupportedLanguage, HashSet<String>>, HashMap<SupportedLanguage, HashSet<String>>), GatherError> {
+    if !Path::new(temp_dir).exists() {
+        fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
+    }
+
+    let temp_repo_dir = format!("{}/{}_{}", temp_dir, owner, repo);
+
+    let bar = ProgressBar::new(0);
+    let repo_info =
+        repository::BareRepositoryInfo::clone_or_open(&bar, owner, repo, &temp_repo_dir)
+            .map_err(|_| GatherError::RepositoryCloneError)?;
+
+    let main_branch = repo_info
+        .get_main_branch()
+        .ok_or(GatherError::MainBranchNotFound)?;
+
+    let commits = repo_info
+        .get_commits(&main_branch)
+        .map_err(|_| GatherError::RevwalkError)?;
+
+    let commit_count = commits.len();
+
+    if commit_count == 0 {
+        return Err(GatherError::RevwalkError);
+    }
+
+    let indices = sample_indices(commit_count, 100).into_iter().rev().collect::<Vec<_>>();
+
+    let index1 = indices[commit_indices.0];
+    let commit1 = match repo_info.checkout_commit(commits[index1], &main_branch) {
+        Ok(c) => c,
+        Err(_) => return Err(GatherError::RevwalkError),
+    };
+    let symbols1 = code::find_symbols_local(Path::new(&temp_repo_dir)).map_err(|_| GatherError::RevwalkError)?;
+
+    let index2 = indices[commit_indices.1];
+    let commit2 = match repo_info.checkout_commit(commits[index2], &main_branch) {
+        Ok(c) => c,
+        Err(_) => return Err(GatherError::RevwalkError),
+    };
+    let symbols2 = code::find_symbols_local(Path::new(&temp_repo_dir)).map_err(|_| GatherError::RevwalkError)?;
+
+    Ok((symbols1, symbols2))
+}

@@ -1,19 +1,16 @@
-use common::input::InputData;
-use crate::project::Project;
+use std::{fs::{File, create_dir_all}, io::Write, path::Path};
 
-use common::repository::BareRepositoryInfo;
-use std::io::Write;
-use std::fs::{File, create_dir_all};
-use std::path::Path;
+use common::{input::InputData, repository::BareRepositoryInfo};
 use indicatif::ProgressBar;
 
-pub const MAX_SAMPLES: usize = 250; // 250
+use crate::collect::{collect_repository, save_components};
+
+pub const MAX_SAMPLES: usize = 500;
 
 #[derive(Debug)]
 pub enum PipelineError {
 	RepositoryError,
 	FileError,
-	ProjectError,
 }
 
 fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
@@ -32,23 +29,19 @@ fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
 }
 
 pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressBar) -> Result<(), PipelineError> {
-	let name = format!("{}/{}", data.author, data.name);
-	bar.set_message(format!("Cloning {}/{}", data.author, data.name));
-	let results_folder = format!("results/{}_{}", data.author, data.name);
-	if !Path::new(&results_folder).exists() {
+    let name = format!("{}/{}", data.author, data.name);
+    let results_folder = format!("results/{}_{}", data.author, data.name);
+    if !Path::new(&results_folder).exists() {
 		create_dir_all(&results_folder).map_err(|_| PipelineError::FileError)?;
 	} else {
-		bar.set_message(format!("Results folder already exists for {}/{}", data.author, data.name));
 		let mut skipped_file_wtr = File::create("results/skipped.txt").map_err(|_| PipelineError::FileError)?;
 
 		skipped_file_wtr.write_all(format!("Skipped: {}/{} at {}\n", data.author, data.name, chrono::Utc::now()).as_bytes()).map_err(|_| PipelineError::FileError)?;
 		return Ok(());
 	}
-	let commits_file = format!("{}/commits.csv", results_folder);
+    let commits_file = format!("{}/commits.csv", results_folder);
 	let mut commits_file_wtr = File::create(&commits_file).map_err(|_| PipelineError::FileError)?;
-	commits_file_wtr.write_all(b"index,commit_oid,commit_time,commit_summary,checkout_ms,analysis_ms,upload_ms,retrieval_ms,message\n").map_err(|_| PipelineError::FileError)?;
-
-	let project = Project::create(&data.name, &results_folder).map_err(|_| PipelineError::ProjectError)?;
+	commits_file_wtr.write_all(b"index,commit_oid,commit_time,commit_summary,checkout_ms,collect_ms,save_ms,message\n").map_err(|_| PipelineError::FileError)?;
 
 	let temp_dir = format!("temp/{}_{}", data.author, data.name);
 
@@ -58,7 +51,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 	commits.reverse(); // Reverse to get oldest to newest
 	bar.set_message(format!("Found {} commits in main branch", commits.len()));
 	let indices = sample_indices(commits.len(), MAX_SAMPLES);
-	let mut success_count = 0;
+	let total_samples = indices.len();
 
 	for (i, index) in indices.iter().enumerate() {
 		let start_time = std::time::Instant::now();
@@ -66,7 +59,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 		let commit = match repo.checkout_commit(commit_oid, &main_branch) {
             Ok(c) => c,
             Err(err) => {
-				bar.set_message(format!("{} [{}/{}] Failed to checkout commit {}: {}, skipping...", name, i + 1, indices.len(), &commit_oid.to_string()[..8], err));
+				bar.set_message(format!("{} [{}/{}] Failed to checkout commit {}: {}, skipping...", name, i + 1, total_samples, &commit_oid.to_string()[..8], err));
 				commits_file_wtr.write_all(format!(
 					"{},{},{},{},{},{},{},{},Checkout failed: {}\n", 
 					i,
@@ -83,17 +76,18 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 			}
         };
 		let checkout_ms = start_time.elapsed().as_millis();
-		bar.set_message(format!("{} [{}/{}] Checked out commit {} in {} ms, running analysis...", name, i + 1, indices.len(), &commit.id().to_string()[..8], checkout_ms));
+		bar.set_message(format!("{} [{}/{}] Checked out commit {} in {} ms, running analysis...", name, i + 1, total_samples, &commit.id().to_string()[..8], checkout_ms));
 
 		let start_time = std::time::Instant::now();
-		let result = project.run_analysis(&repo.dir, i).map_err(|_| PipelineError::ProjectError)?;
+		let result = collect_repository(&temp_dir);
+
 		let analysis_ms = start_time.elapsed().as_millis();
 
-		if result != 0 {
-			bar.set_message(format!("{} [{}/{}] Analysis failed with exit code {} in {} ms, skipping upload and retrieval...", name, i + 1, indices.len(), result, analysis_ms));
+		if let Err(err) = result {
+			bar.set_message(format!("{} [{}/{}] Analysis failed after {} ms, continuing...", name, i + 1, total_samples, analysis_ms));
 			
 			commits_file_wtr.write_all(format!(
-				"{},{},{},{},{},{},{},{},Analysis failed with exit code {}\n", 
+				"{},{},{},{},{},{},{},{},Analysis failed because {:?}\n", 
 				i,
 				commit_oid, 
 				chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
@@ -102,49 +96,30 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 				analysis_ms,
 				0,
 				0,
-				result
+				err
 			).as_bytes()).map_err(|_| PipelineError::FileError)?;
 			continue;
 		} else {
-			bar.set_message(format!("{} [{}/{}] Analysis completed with exit code {} in {} ms, waiting for upload...", name, i + 1, indices.len(), result, analysis_ms));
-			success_count += 1;
+			bar.set_message(format!("{} [{}/{}] Analysis completed after {} ms, saving...", name, i + 1, total_samples, analysis_ms));
 		}
-		
-		let start_time = std::time::Instant::now();
-		std::thread::sleep(std::time::Duration::from_secs(3));
-		for _ in 0..1000 {
-			if let Ok(num_completed) = project.get_activity_count() {
-				bar.set_message(format!("{} [{}/{}] Waiting {} secs for upload... now present are {} of {} successful analyses", name, i + 1, indices.len(), start_time.elapsed().as_secs(), num_completed, success_count));
-				if num_completed == success_count {
-					break;
-				}
-			} else {
-				bar.set_message(format!("{} [{}/{}] Waiting {} secs for upload... failed to get activity count", name, i + 1, indices.len(), start_time.elapsed().as_secs()));
-			}
-			std::thread::sleep(std::time::Duration::from_secs(1));
-		}
-		let upload_ms = start_time.elapsed().as_millis();
 
 		let start_time = std::time::Instant::now();
-		let result = project.get_results(i, bar).map_err(|_| PipelineError::ProjectError)?;
-		bar.set_message(format!("{} [{}/{}] Retrieved {} items, checking out next...", name, i + 1, indices.len(), result));
-		let retrieval_ms = start_time.elapsed().as_millis();
+		let results_file = format!("{}/{}.json.zip", results_folder, i);
+		save_components(&Path::new(&results_file), &result.unwrap()).map_err(|_| PipelineError::FileError)?;
+		let save_ms = start_time.elapsed().as_millis();
 
 		commits_file_wtr.write_all(format!(
-			"{},{},{},{},{},{},{},{},\n", 
+			"{},{},{},{},{},{},{},\n", 
 			i,
 			commit_oid, 
 			chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
 			commit.summary().unwrap_or(""),
 			checkout_ms,
 			analysis_ms,
-			upload_ms,
-			retrieval_ms
+			save_ms,
 		).as_bytes()).map_err(|_| PipelineError::FileError)?;
 		overall_bar.inc(1);
 	}
-
-	project.delete().map_err(|_| PipelineError::ProjectError)?;
 
 	Ok(())
 }

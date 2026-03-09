@@ -6,8 +6,11 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
 
+use bio::io::common;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use probminhash::superminhasher2::get_jaccard_index_estimate;
 
 use rayon::prelude::*;
 
@@ -17,6 +20,7 @@ use crate::code::SupportedLanguage;
 use crate::code::SymbolData;
 use crate::gather;
 use crate::hash;
+use crate::hash::HashData;
 
 fn filter_unique_repos(
 	repos: Vec<(String, u32, f64)>,
@@ -135,7 +139,7 @@ pub fn run_analysis_for_repo(
 		}
 	}
 	clean_temp_dir(&temp_dir);
-	clean_symbols(&result_folder);
+	//clean_symbols(&result_folder);
 }
 
 pub fn run_analysis_pipeline(
@@ -510,6 +514,112 @@ pub fn run_symbols_pipeline(
 	overall_bar.finish_with_message("Collection completed.");
 }
 
+pub struct RustRepoData {
+	pub language: String,
+	pub name: String,
+	pub stars: u32,
+	pub rust_percentage: f64,
+}
+
+pub fn run_symbols_compare_all_pipeline(
+	input: &str,
+	repositories: &str,
+	output: &str,
+) {
+	let start_time = std::time::Instant::now();
+	let repositories = csv::Reader::from_path(repositories)
+		.expect("Failed to open repositories CSV file")
+		.records()
+		.enumerate()
+		.map(|(i, result)| {
+			let record = result.expect("Failed to read repository record");
+			let language = record[0].to_string();
+			let name = record[1].to_string();
+			let stars: u32 = record[2].parse().unwrap_or(0);
+			let rust_percentage: f64 = record[3].parse().unwrap_or(0.0);
+
+			RustRepoData {
+				language,
+				name,
+				stars,
+				rust_percentage,
+			}
+		})
+		.collect::<Vec<RustRepoData>>();
+
+	let mut name_set = HashSet::new();
+	let mut unique_repos = Vec::new();
+
+	for repo in repositories {
+		if !name_set.contains(&repo.name) && repo.rust_percentage >= 1.0 {
+			name_set.insert(repo.name.clone());
+			unique_repos.push(repo);
+		}
+	}
+	println!(
+		"Loaded {} unique repositories for comparison in {:.2?}",
+		unique_repos.len(),
+		start_time.elapsed()
+	);
+
+	let start_time = std::time::Instant::now();
+	let hash_data_list = hash::read_hash_data(input);
+    println!(
+        "Loaded {} hash data entries in {:.2?}",
+        hash_data_list.len(),
+        start_time.elapsed()
+    );
+
+	let mut writer = csv::Writer::from_path(output)
+		.expect("Failed to create output CSV file");
+
+	for repo in &unique_repos {
+		let name = repo.name.replace("/", "_");
+		let start_time = std::time::Instant::now();
+		let from: Option<&HashData> = hash_data_list.iter()
+			.find(|hd| hd.project == name && hd.language == "Rust");
+
+		if from.is_none() {
+			println!("Project {} not found in hash data.", name);
+			continue;
+		}
+		let item = from.unwrap();
+		let mut results = Vec::with_capacity(hash_data_list.len());
+		for hash_data in &hash_data_list {
+			if hash_data.project == name { continue; }
+			if hash_data.language == "Rust" { continue; }
+
+			let similarity = get_jaccard_index_estimate(
+				&hash_data.hashes,
+				&item.hashes,
+			).unwrap_or(0.0);
+			
+			results.push((similarity, hash_data));
+		}
+
+		results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+		if results.is_empty() {
+			println!("No matches found for {}.", repo.name);
+			continue;
+		}
+
+		for (rank, (sim, best)) in results.iter().take(5).enumerate() {
+			let sim = *sim;
+			let best = *best;
+			writer
+				.write_record(&[
+					repo.name.clone(),
+					rank.to_string(),
+					best.project.clone(),
+					best.language.clone(),
+					format!("{:.4}", sim),
+				])
+				.expect("Failed to write comparison record");
+		}
+		writer.flush().expect("Failed to flush CSV writer");
+	}
+}
+
 pub async fn run_symbols_collect_pipeline(
 	min_stars: &u32,
 ) {
@@ -604,9 +714,16 @@ pub fn run_symbols_hash_pipeline(
 	input: &str,
 	output: &str,
 ) {
-	if Path::new(output).exists() {
-		fs::remove_file(output).expect("Failed to clear output file");
-	}
+	let previous_data = if Path::new(output).exists() {
+		Some(hash::read_hash_data(output))
+	} else {
+		None
+	};
+
+	let previous_data = match previous_data {
+		Some(data) => data.iter().map(|hd| hd.project.clone()).collect::<HashSet<String>>(),
+		None => HashSet::new(),
+	};
 
 	let input_path = Path::new(input);
 	let folders: Vec<_> = fs::read_dir(input_path)
@@ -616,6 +733,11 @@ pub fn run_symbols_hash_pipeline(
         .filter(|path| path.is_dir())
         .collect();
 
+	let folders_before = folders.len();
+	let folders: Vec<_> = folders.into_iter()
+		.filter(|path| path.file_name().is_some() && !previous_data.contains(&path.file_name().unwrap().to_string_lossy().to_string()))
+		.collect();
+	println!("Found {} folders to process ({} already processed).", folders.len(), folders_before - folders.len());
 	let total_size = folders.len();
 	let mp = MultiProgress::new();
 	let overall_bar = mp.add(ProgressBar::new(total_size as u64));
@@ -641,10 +763,6 @@ pub fn run_symbols_hash_pipeline(
 		);
 		pb.set_message("Starting...");
 		handles.insert(thread, pb);
-	}
-
-	if Path::new(output).exists() {
-		fs::remove_file(output).expect("Failed to clear output file");
 	}
 	
 	let file = fs::OpenOptions::new()
@@ -688,7 +806,7 @@ pub fn run_symbols_hash_pipeline(
 				)
 				.as_bytes(),
 			)
-				.expect("Failed to write to panic log");
+			.expect("Failed to write to panic log");
 			pw.flush().expect("Failed to flush panic log");
 		}
 
@@ -698,4 +816,105 @@ pub fn run_symbols_hash_pipeline(
 	writer.lock().unwrap().flush().unwrap();
 
 	overall_bar.finish_with_message("Hashing completed.");
+}
+
+fn clone_repo(name: &str, folder: &str) {
+	let git_url = format!("git@github.com:{}.git", name);
+	// let git_url = format!("https://github.com/{}.git", name);
+	let status = std::process::Command::new("git")
+		.args(&["clone", &git_url, "--depth", "1", &folder])
+		.stdout(std::process::Stdio::null())
+		.stderr(std::process::Stdio::null())
+		.status()
+		.expect("Failed to execute git clone command");
+
+	if !status.success() {
+		eprintln!("[{}] Failed to clone repository with code {}", name, status.code().unwrap_or(-1));
+		return;
+	}
+}
+
+pub fn find_similar_symbols(
+	from: &String,
+	to: &String,
+) {
+	let from_root = format!("temp_sym/{}", from.replace("/", "_"));
+	clone_repo(from, &from_root);
+	let from_path = Path::new(&from_root);
+	let from_symbols = code::find_symbols_local(from_path).expect("Failed to find symbols for 'from' repository");
+	let to_root = format!("temp_sym/{}", to.replace("/", "_"));
+	clone_repo(to, &to_root);
+	let to_path = Path::new(&to_root);
+	let to_symbols = code::find_symbols_local(to_path).expect("Failed to find symbols for 'to' repository");
+
+	let empty_set = HashSet::new();
+	let from_rust = from_symbols.get(&SupportedLanguage::Rust).unwrap_or(&empty_set);
+
+	for lang in to_symbols.keys() {
+		if lang == &SupportedLanguage::Rust {
+			continue;
+		}
+		let to_lang_symbols = to_symbols.get(lang).unwrap_or(&empty_set);
+		let common_symbols: HashSet<String> = from_rust.intersection(to_lang_symbols).cloned().collect();
+		let mut sorted_common_symbols: Vec<String> = common_symbols.iter().cloned().collect();
+		sorted_common_symbols.sort_by_key(|s| s.len());
+		sorted_common_symbols.reverse();
+
+		println!("to {}:", lang.to_string());
+		for symbol in &sorted_common_symbols {
+			println!("{}", symbol);
+		}
+	}
+}
+
+pub fn run_identifiers_pipeline(
+	name: &str,
+	from: usize,
+	to: usize,
+) {
+	let parts: Vec<&str> = name.split('/').collect();
+	if parts.len() != 2 {
+		eprintln!("Invalid repository name: {}", name);
+		return;
+	}
+	let owner = parts[0];
+	let repo = parts[1];
+	let temp_dir = format!("temp_identifiers/{}_{}", owner, repo);
+	let (symbols1, symbols2) = match gather::gather_two_commit_stats(owner, repo, &temp_dir, (from, to)) {
+		Ok((s1, s2)) => (s1, s2),
+		Err(e) => {
+			eprintln!("Failed to gather statistics for {} from {} to {}: {:?}", name, from, to, e);
+			return;
+		}
+	};
+	let empty_set: HashSet<String> = HashSet::new();
+	let symbols_rust_before = symbols1.get(&SupportedLanguage::Rust).unwrap_or(&empty_set);
+	for lang in symbols1.keys() {
+		if lang == &SupportedLanguage::Rust {
+			continue;
+		}
+		let symbols_before = symbols1.get(lang).unwrap_or(&empty_set);
+		let symbols_rust_after = symbols2.get(&SupportedLanguage::Rust).unwrap_or(&empty_set);
+
+		let common_symbols: HashSet<String> = symbols_before.intersection(&symbols_rust_after).cloned().collect();
+		// create a sorted view of the common symbols by length
+		let mut sorted_common_symbols: Vec<String> = common_symbols.iter().cloned().collect();
+		sorted_common_symbols.sort_by_key(|s| s.len());
+		sorted_common_symbols.reverse();
+
+		let symbols_other_after: HashSet<String> = symbols2.iter()
+			.filter(|(l, _)| **l != SupportedLanguage::Rust)
+			.flat_map(|(_, syms)| syms.iter().cloned())
+			.collect::<HashSet<String>>();
+
+		let moved_symbols: HashSet<String> = common_symbols.difference(&symbols_other_after).cloned().collect();
+		println!("from {}:", lang.to_string());
+		for symbol in &sorted_common_symbols {
+			if moved_symbols.contains(symbol) && !symbols_rust_before.contains(symbol) {
+				println!("{} (moved)", symbol);
+			} else {
+				println!("{}", symbol);
+			}
+		}
+	}
 }

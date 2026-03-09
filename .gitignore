@@ -14,3 +14,25 @@ sonar/input*
 sonar/results/*
 sonar/temp/*
 sonar/.env
+
+code/input*
+code/results/*
+code/temp/*
+
+migration-status/analysis.ipynb
+migration-status/analysis2.ipynb
+migration-status/check-status copy 2.ipynb
+migration-status/check-status copy.ipynb
+migration-status/check-status.ipynb
+migration-status/check.py
+migration-status/dhat-heap.json
+migration-status/final_merged.csv
+migration-status/flamegraph.svg
+migration-status/heaptrack.cargo.91134.zst
+migration-status/heaptrack.cargo.150775.zst
+migration-status/metadata_percentage_by_star_count.png
+migration-status/newplot.png
+migration-status/panic_log.txt
+migration-status/perf.data
+migration-status/repository_stars_distribution.png
+migration-status/stars_distribution.png
