@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 dotenv = "0.15.0"
 indicatif = "0.18.4"
-rust-code-analysis = { path = "../rust-code-analysis" }
-common = { path = "../../common" }
+rust-code-analysis = { path = "../../rust-code-analysis" }
+common = { path = "../common" }
 rayon = "1.11.0"
 chrono = "0.4.44"
 serde_json = "1.0.149"
