@@ -14,3 +14,6 @@ serde_json = "1.0.149"
 walkdir = "2.5.0"
 serde = "1.0.228"
 flate2 = "1.1.9"
+truck-facto-rs = { path = "../../truck-facto-rs" }
+szz-rs = { path = "../../szz-rs" }
+git2 = "0.20.4"

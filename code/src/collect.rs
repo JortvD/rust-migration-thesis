@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Serialize)]
 pub enum Metric {
-    NARGS, NEXITS, COGNITIVE, CYCLOMATIC, HALSTEAD, LOC, NOM, MI, ABC, WMC, NPM, NPA, SAFE,
+    NARGS, NEXITS, COGNITIVE, CYCLOMATIC, HALSTEAD, LOC, NOM, MI, ABC, WMC, NPM, NPA, THESIS,
 }
 
 #[derive(Debug, Serialize)]
@@ -43,19 +43,19 @@ impl Serialize for ComponentMetrics {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(13))?;
-        seq.serialize_element(&(Metric::NARGS, &self.0.nargs))?;
-        seq.serialize_element(&(Metric::NEXITS, &self.0.nexits))?;
+        seq.serialize_element(&(Metric::THESIS, &self.0.thesis))?;
+        seq.serialize_element(&(Metric::LOC, &self.0.loc))?;
         seq.serialize_element(&(Metric::COGNITIVE, &self.0.cognitive))?;
         seq.serialize_element(&(Metric::CYCLOMATIC, &self.0.cyclomatic))?;
         seq.serialize_element(&(Metric::HALSTEAD, &self.0.halstead))?;
-        seq.serialize_element(&(Metric::LOC, &self.0.loc))?;
-        seq.serialize_element(&(Metric::NOM, &self.0.nom))?;
         seq.serialize_element(&(Metric::MI, &self.0.mi))?;
+        seq.serialize_element(&(Metric::NARGS, &self.0.nargs))?;
+        seq.serialize_element(&(Metric::NEXITS, &self.0.nexits))?;
+        seq.serialize_element(&(Metric::NOM, &self.0.nom))?;
         seq.serialize_element(&(Metric::ABC, &self.0.abc))?;
         seq.serialize_element(&(Metric::WMC, &self.0.wmc))?;
         seq.serialize_element(&(Metric::NPM, &self.0.npm))?;
         seq.serialize_element(&(Metric::NPA, &self.0.npa))?;
-        seq.serialize_element(&(Metric::SAFE, &self.0.safecheck))?;
         seq.end()
     }
 }

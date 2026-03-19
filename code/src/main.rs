@@ -8,6 +8,9 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 mod pipeline;
 mod collect;
+mod truck;
+mod szz;
+mod commits;
 
 use crate::pipeline::{MAX_SAMPLES, run_pipeline};
 

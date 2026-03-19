@@ -19,6 +19,10 @@ code/input*
 code/results/*
 code/temp/*
 
+github/input*
+github/results/*
+github/.env
+
 migration-status/analysis.ipynb
 migration-status/analysis2.ipynb
 migration-status/check-status copy 2.ipynb

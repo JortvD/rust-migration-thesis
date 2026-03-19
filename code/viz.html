@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Metrics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .tree-node-active { background-color: #eff6ff !important; border-color: #3b82f6 !important; }
+        .drag-over { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+        
+        /* Resizer styling */
+        .resizer { width: 4px; cursor: col-resize; background-color: #e2e8f0; transition: background-color 0.2s; }
+        .resizer:hover, .resizer:active { background-color: #3b82f6; }
+
+        /* Metric Bar Animation */
+        .metric-bar { transition: width 0.5s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden relative font-sans">
+
+    <div id="loadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl border border-slate-200 flex flex-col items-center">
+            <svg class="animate-spin h-8 w-8 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span class="text-sm font-bold text-slate-700" id="loadingText">Processing Data...</span>
+        </div>
+    </div>
+
+    <header class="bg-white border-b border-slate-200 p-4 shadow-sm z-20 flex-shrink-0 flex items-center justify-between gap-6">
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 leading-tight">Metrics Dashboard</h1>
+        </div>
+        
+        <div class="flex-grow max-w-2xl relative">
+            <input type="file" id="fileInput" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+            <div id="dropZone" class="w-full border-2 border-dashed border-slate-300 rounded-lg p-2.5 text-center transition-colors bg-slate-50 hover:bg-slate-100 flex items-center justify-center gap-3">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <span class="text-sm text-slate-600 font-medium" id="uploadText">Click or drag a .json file here</span>
+            </div>
+        </div>
+        <div class="w-32 flex justify-end">
+            <button id="exportBtn" onclick="exportToCSV()" class="hidden bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export CSV
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden relative">
+        
+        <aside id="sidebar" class="w-[320px] min-w-[200px] max-w-[600px] bg-white flex-shrink-0 flex flex-col relative z-10">
+            <div class="p-3 bg-slate-50 border-b border-slate-200 z-10 shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Component Tree</span>
+                    <div class="flex gap-1.5">
+                        <button onclick="toggleAllNodes(true)" class="text-[10px] bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors">Expand All</button>
+                        <button onclick="toggleAllNodes(false)" class="text-[10px] bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors">Collapse</button>
+                    </div>
+                </div>
+                <div class="relative">
+                    <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="searchInput" placeholder="Search components..." class="w-full border border-slate-300 rounded pl-8 pr-2 py-1.5 text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                </div>
+            </div>
+            
+            <div id="sidebarList" class="p-2 flex-1 overflow-y-auto pb-10">
+                <div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic opacity-70">
+                    <svg class="w-12 h-12 mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Awaiting Data
+                </div>
+            </div>
+        </aside>
+
+        <div id="resizer" class="resizer flex-shrink-0 z-20" title="Drag to resize sidebar"></div>
+
+        <section class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 relative" id="contentArea">
+            <div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm">
+                <p>Select an item from the sidebar to view detailed metrics.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let parsedData = [];
+        let dataTree = [];
+        let activeComponentIndex = null;
+
+        const ICONS = {
+            folder: `<svg class="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`,
+            file: `<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>`,
+            func: `<svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>`
+        };
+
+        // --- Drag & Drop / File Handling ---
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false);
+            fileInput.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+        ['dragenter', 'dragover'].forEach(evt => fileInput.addEventListener(evt, () => dropZone.classList.add('drag-over'), false));
+        ['dragleave', 'drop'].forEach(evt => fileInput.addEventListener(evt, () => dropZone.classList.remove('drag-over'), false));
+
+        fileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadText').textContent = file.name;
+            showLoading(true, "Parsing JSON...");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                setTimeout(() => {
+                    try {
+                        parsedData = JSON.parse(e.target.result);
+                        document.getElementById('searchInput').value = ''; 
+                        showLoading(true, "Building Tree Structure...");
+                        
+                        setTimeout(() => {
+                            buildTree();
+                            renderSidebar();
+                            document.getElementById('exportBtn').classList.remove('hidden');
+                            
+                            const firstComp = parsedData.find(p => p);
+                            if (firstComp) selectComponent(firstComp._originalIndex);
+                            showLoading(false);
+                        }, 10); // Yield to render loading text
+                    } catch (err) {
+                        alert("Invalid JSON format.");
+                        console.error(err);
+                        showLoading(false);
+                    }
+                }, 10);
+            };
+            reader.readAsText(file);
+        });
+
+        function showLoading(show, text="Processing Data...") {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingText').textContent = text;
+            show ? overlay.classList.remove('hidden') : overlay.classList.add('hidden');
+        }
+
+        // --- Data Structuring ---
+        function buildTree() {
+            let root = { children: [] };
+            let map = { "": root };
+
+            parsedData.forEach((item, index) => {
+                item._originalIndex = index;
+                let parts = item.path.split('::');
+                let filePath = parts[0];
+                let compName = parts.length > 1 ? parts[1] : null;
+
+                let pathSegments = filePath.split(/[/\\]/); 
+                let currentPath = "";
+                let parentNode = root;
+
+                pathSegments.forEach((segment, i) => {
+                    let isLast = i === pathSegments.length - 1;
+                    currentPath = currentPath ? currentPath + "/" + segment : segment;
+
+                    if (!map[currentPath]) {
+                        let newNode = {
+                            id: "node-" + btoa(currentPath).replace(/[^a-zA-Z0-9]/g, ''), 
+                            name: segment,
+                            path: currentPath,
+                            children: [],
+                            isFolder: !isLast
+                        };
+                        parentNode.children.push(newNode);
+                        map[currentPath] = newNode;
+                    }
+                    parentNode = map[currentPath];
+                });
+
+                if (compName) {
+                    let compPath = item.path;
+                    let compNode = {
+                        id: "comp-" + index,
+                        name: item.name,
+                        path: compPath,
+                        children: [],
+                        isFolder: false,
+                        data: item
+                    };
+                    parentNode.children.push(compNode);
+                    map[compPath] = compNode;
+                } else {
+                    parentNode.data = item;
+                    parentNode.isFolder = false;
+                    parentNode.id = "comp-" + index;
+                }
+            });
+            dataTree = root.children;
+        }
+
+        // --- DOM Rendering (Optimized) ---
+        function renderSidebar() {
+            const sidebarList = document.getElementById('sidebarList');
+            sidebarList.innerHTML = buildTreeHTML(dataTree, 0);
+        }
+
+        function buildTreeHTML(nodes, depth) {
+            let html = `<ul class="${depth > 0 ? 'ml-3 pl-1 space-y-px border-l border-slate-200' : 'space-y-px'}">`;
+            
+            nodes.forEach(node => {
+                const isDataNode = !!node.data;
+                const isExpanded = depth === 0; 
+                
+                let icon = ICONS.folder;
+                if (!node.isFolder && !isDataNode) icon = ICONS.file;
+                if (isDataNode) icon = node.data.qualifier === 'UNIT' ? ICONS.file : ICONS.func;
+
+                const hasChildren = node.children.length > 0;
+                
+                // FIXED BUG: removed `truncate` from text span, added `min-w-0 break-all` to ensure flex container handles wrapping properly
+                html += `
+                    <li class="tree-item" data-name="${node.name.toLowerCase()}">
+                        <div class="flex items-start rounded hover:bg-slate-100 group transition-colors select-none py-1.5 border-l-2 border-transparent" 
+                             id="${isDataNode ? 'tree-row-' + node.data._originalIndex : 'folder-row-' + node.id}"
+                             data-action="${isDataNode ? 'select' : 'toggle'}" 
+                             data-target="${isDataNode ? node.data._originalIndex : node.id}">
+                            
+                            ${hasChildren ? `
+                                <button class="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors shrink-0 mt-0.5" data-action="toggle" data-target="${node.id}">
+                                    <svg id="chevron-${node.id}" class="w-3.5 h-3.5 transition-transform duration-200 pointer-events-none ${isExpanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                                </button>
+                            ` : `<div class="w-5 h-5 shrink-0 flex items-center justify-center mt-0.5"><span class="w-1 h-1 rounded-full bg-slate-300"></span></div>`}
+                            
+                            <div class="flex-1 flex items-start gap-1.5 cursor-pointer text-sm pr-2 min-w-0" title="${node.path}">
+                                <div class="mt-0.5 shrink-0">${icon}</div>
+                                <span class="break-all ${isDataNode ? 'font-medium text-slate-700' : 'text-slate-600'} search-text">${node.name}</span>
+                                ${isDataNode ? `<span class="ml-auto shrink-0 mt-0.5 text-[9px] px-1 py-0.5 rounded ${node.data.qualifier === 'UNIT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'} font-bold uppercase">${node.data.qualifier.charAt(0)}</span>` : ''}
+                            </div>
+                        </div>
+                        ${hasChildren ? `<div id="children-${node.id}" class="tree-children ${isExpanded ? '' : 'hidden'}">${buildTreeHTML(node.children, depth + 1)}</div>` : ''}
+                    </li>
+                `;
+            });
+            html += `</ul>`;
+            return html;
+        }
+
+        // --- Event Delegation for Sidebar ---
+        document.getElementById('sidebarList').addEventListener('click', function(e) {
+            let target = e.target.closest('[data-action]');
+            if (!target) return;
+            
+            e.stopPropagation();
+            const action = target.getAttribute('data-action');
+            const id = target.getAttribute('data-target');
+
+            if (action === 'toggle') {
+                const childrenDiv = document.getElementById(`children-${id}`);
+                const chevron = document.getElementById(`chevron-${id}`);
+                if (childrenDiv) childrenDiv.classList.toggle('hidden');
+                if (chevron) chevron.classList.toggle('rotate-90');
+            } else if (action === 'select') {
+                selectComponent(id);
+            }
+        });
+
+        // --- Fast Client-Side Search ---
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.tree-item');
+            
+            if (!query) {
+                // Reset search
+                items.forEach(item => {
+                    item.classList.remove('hidden');
+                    const textSpan = item.querySelector('.search-text');
+                    if(textSpan) textSpan.classList.remove('bg-yellow-200', 'text-yellow-900');
+                });
+                return;
+            }
+
+            // DOM manipulation loop
+            items.forEach(item => {
+                const name = item.getAttribute('data-name');
+                const textSpan = item.querySelector('.search-text');
+                
+                if (name.includes(query)) {
+                    item.classList.remove('hidden');
+                    if(textSpan) textSpan.classList.add('bg-yellow-200', 'text-yellow-900');
+                    
+                    // Unhide all parent containers up the tree
+                    let parent = item.parentElement.closest('.tree-item');
+                    while(parent) {
+                        parent.classList.remove('hidden');
+                        const childrenContainer = parent.querySelector('.tree-children');
+                        const chevron = parent.querySelector('[id^="chevron-"]');
+                        if (childrenContainer) childrenContainer.classList.remove('hidden');
+                        if (chevron) chevron.classList.add('rotate-90');
+                        parent = parent.parentElement.closest('.tree-item');
+                    }
+                } else {
+                    item.classList.add('hidden');
+                    if(textSpan) textSpan.classList.remove('bg-yellow-200', 'text-yellow-900');
+                }
+            });
+        });
+
+        function toggleAllNodes(expand) {
+            document.querySelectorAll('.tree-children').forEach(el => expand ? el.classList.remove('hidden') : el.classList.add('hidden'));
+            document.querySelectorAll('[id^="chevron-"]').forEach(el => expand ? el.classList.add('rotate-90') : el.classList.remove('rotate-90'));
+        }
+
+        // --- Smart Visualization ---
+        function getMetricVisualization(metricName, key, value) {
+            if (typeof value !== 'number') return { style: '', bar: '' };
+            
+            let rowStyle = 'hover:bg-slate-50';
+            let barHtml = '';
+            
+            // Generate visual bars representing threshold severity
+            function createBar(maxVal, warningThresh, dangerThresh) {
+                let pct = Math.min((value / maxVal) * 100, 100);
+                let color = 'bg-blue-100/50';
+                if (value > dangerThresh) {
+                    color = 'bg-red-200/60';
+                    rowStyle = 'text-red-800 font-semibold border-l-2 border-red-500 bg-red-50 hover:bg-red-100';
+                } else if (value > warningThresh) {
+                    color = 'bg-amber-200/60';
+                    rowStyle = 'text-amber-800 font-medium border-l-2 border-amber-400 bg-amber-50 hover:bg-amber-100';
+                }
+                return `<div class="absolute inset-y-0 left-0 ${color} metric-bar -z-10" style="width: ${pct}%"></div>`;
+            }
+
+            if (metricName === 'CYCLOMATIC' && (key === 'sum' || key === 'average')) barHtml = createBar(20, 8, 15);
+            else if (metricName === 'COGNITIVE' && (key === 'sum' || key === 'average')) barHtml = createBar(20, 8, 15);
+            else if (metricName === 'HALSTEAD' && key === 'bugs') barHtml = createBar(2, 0.5, 1.0);
+            else if (metricName === 'LOC' && key === 'sloc') barHtml = createBar(300, 150, 250); // Visual indicator for file/func length
+
+            return { style: rowStyle, bar: barHtml };
+        }
+
+        function selectComponent(index) {
+            activeComponentIndex = index;
+            document.querySelectorAll('[id^="tree-row-"]').forEach(el => el.classList.remove('tree-node-active'));
+            const activeRow = document.getElementById(`tree-row-${index}`);
+            if(activeRow) {
+                activeRow.classList.add('tree-node-active');
+                activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            const component = parsedData[index];
+            const contentArea = document.getElementById('contentArea');
+            
+            let html = `
+                <div class="sticky top-0 z-20 mb-6 bg-white/95 backdrop-blur-md shadow-sm border border-slate-200 rounded-lg p-5 flex flex-wrap justify-between items-center gap-4">
+                    <div class="w-full">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="px-2 py-1 rounded text-[10px] ${component.qualifier === 'UNIT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'} font-bold uppercase tracking-wider border ${component.qualifier === 'UNIT' ? 'border-indigo-200' : 'border-emerald-200'}">
+                                ${component.qualifier}
+                            </span>
+                            <h2 class="text-2xl font-bold text-slate-800 break-all leading-tight">
+                                ${component.name}
+                            </h2>
+                        </div>
+                        <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600 font-mono bg-slate-50 p-2.5 rounded border border-slate-100">
+                            <span title="File Path" class="flex items-center gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg> ${component.path}</span>
+                            <span title="Line Numbers" class="flex items-center gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> Lines ${component.start_line} - ${component.end_line}</span>
+                            <span title="Language" class="flex items-center gap-1.5 uppercase"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> ${component.language}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 pb-12">
+            `;
+
+            component.measurements.forEach(([metricName, metricsObj]) => {
+                html += `
+                    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow">
+                        <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex justify-between items-center">
+                            ${metricName}
+                            <span class="text-slate-500 font-mono font-normal text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full">${Object.keys(metricsObj).length}</span>
+                        </div>
+                        <div class="p-0 flex-1 overflow-hidden">
+                            <table class="w-full text-left text-[13px] text-slate-600">
+                                <tbody class="divide-y divide-slate-100">
+                `;
+
+                for (const [key, value] of Object.entries(metricsObj)) {
+                    let displayValue = value;
+                    if (typeof value === 'number' && !Number.isInteger(value)) displayValue = value.toFixed(3);
+                    else if (value === null) displayValue = '<span class="text-slate-400 italic">N/A</span>';
+
+                    const cleanKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const viz = getMetricVisualization(metricName, key, value);
+
+                    html += `
+                        <tr class="transition-colors border-l-2 border-transparent relative z-0 ${viz.style}">
+                            ${viz.bar}
+                            <td class="py-2 px-4 whitespace-nowrap z-10 relative">${cleanKey}</td>
+                            <td class="py-2 px-4 text-right font-mono font-medium z-10 relative">${displayValue}</td>
+                        </tr>
+                    `;
+                }
+
+                html += `</tbody></table></div></div>`;
+            });
+
+            html += `</div>`;
+            contentArea.innerHTML = html;
+            contentArea.scrollTo(0, 0); 
+        }
+
+        // --- CSV Export Logic ---
+        function exportToCSV() {
+            if (activeComponentIndex === null) return;
+            const component = parsedData[activeComponentIndex];
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += `Component:,${component.name}\nPath:,${component.path}\nQualifier:,${component.qualifier}\n\n`;
+            csvContent += "Category,Metric,Value\n";
+
+            component.measurements.forEach(([category, metrics]) => {
+                for (const [key, value] of Object.entries(metrics)) {
+                    csvContent += `${category},${key},${value}\n`;
+                }
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `${component.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_metrics.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- Sidebar Resizer Logic ---
+        const resizer = document.getElementById('resizer');
+        const sidebar = document.getElementById('sidebar');
+        let x = 0, w = 0;
+
+        const mouseMoveHandler = function(e) { sidebar.style.width = `${w + e.clientX - x}px`; };
+        const mouseUpHandler = function() {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+            document.body.style.cursor = 'default';
+        };
+        resizer.addEventListener('mousedown', function(e) {
+            x = e.clientX;
+            w = parseInt(window.getComputedStyle(sidebar).width, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            document.body.style.cursor = 'col-resize';
+        });
+
+    </script>
+</body>
+</html>

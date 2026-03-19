@@ -1,5 +1,5 @@
 use git2::{FetchOptions, RemoteCallbacks};
-use git2::{Repository, build::RepoBuilder};
+use git2::{Repository, build::{RepoBuilder, CheckoutBuilder}};
 use indicatif::ProgressBar;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
@@ -198,6 +198,97 @@ impl BareRepositoryInfo {
                 )));
             }
         }
+
+        Ok(commit)
+    }
+}
+
+
+pub struct RepositoryInfo {
+    pub dir: String,
+    pub repository: Repository,
+}
+
+impl RepositoryInfo {
+    pub fn clone_or_open(owner: &str, repo: &str, dir: &str) -> Result<Self, git2::Error> {
+        let repo_url = format!("https://github.com/{}/{}.git", owner, repo);
+        let git_path = std::path::Path::new(&dir);
+        let repository = if !git_path.exists() {
+            match RepoBuilder::new().clone(&repo_url, &git_path) {
+                Ok(repo) => repo,
+                Err(e) => return Err(e),
+            }
+        } else {
+            match Repository::open(&dir) {
+                Ok(repo) => repo,
+                Err(e) => return Err(e),
+            }
+        };
+
+        Ok(RepositoryInfo {
+            repository,
+            dir: dir.to_string(),
+        })
+    }
+
+    pub fn get_main_branch(&self) -> Option<String> {
+        if self.repository.find_branch("main", git2::BranchType::Local).is_ok() {
+            Some("refs/heads/main".to_string())
+        } else if self.repository.find_branch("master", git2::BranchType::Local).is_ok() {
+            Some("refs/heads/master".to_string())
+        } else if self.repository.find_branch("canary", git2::BranchType::Local).is_ok() {
+            Some("refs/heads/canary".to_string())
+        } else {
+            match self.repository.head() {
+                Ok(h) => {
+                    if let Some(name) = h.name() {
+                        Some(name.to_string())
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
+        }
+    }
+
+    pub fn get_latest_commit(&self, branch_ref: &str) -> Result<git2::Oid, git2::Error> {
+        let reference = self.repository.find_reference(&branch_ref)?;
+        let oid = reference
+            .target()
+            .ok_or_else(|| git2::Error::from_str("Invalid reference target"))?;
+        Ok(oid)
+    }
+
+    pub fn get_commits(&self, branch_ref: &str) -> Result<Vec<git2::Oid>, git2::Error> {
+        let reference = self.repository.find_reference(&branch_ref)?;
+        let mut oid = reference
+            .target()
+            .ok_or_else(|| git2::Error::from_str("Invalid reference target"))?;
+        
+        let mut commits = Vec::new();
+
+        loop {
+            let commit = self.repository.find_commit(oid)?;
+            commits.push(oid);
+
+            if commit.parent_count() == 0 {
+                break;
+            }
+
+            oid = commit.parent_id(0)?;
+        }
+        Ok(commits)
+    }
+
+    pub fn checkout_commit(&self, oid: git2::Oid) -> Result<git2::Commit<'_>, git2::Error> {
+        let commit = self.repository.find_commit(oid)?;
+        let mut checkout_opts = CheckoutBuilder::new();
+        checkout_opts.force();
+
+        self.repository.checkout_tree(commit.as_object(), Some(&mut checkout_opts))?;
+
+        self.repository.set_head_detached(oid)?;
 
         Ok(commit)
     }
