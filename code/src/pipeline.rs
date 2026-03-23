@@ -49,7 +49,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 
 	let repo = RepositoryInfo::clone_or_open(&data.author, &data.name, &temp_dir).map_err(|_| PipelineError::RepositoryError)?;
 
-	// szz::run(&bar, &name, &temp_dir, &results_folder);
+	szz::run(&bar, &name, &temp_dir, &results_folder);
 
 	let main_branch = repo.get_main_branch().ok_or_else(|| PipelineError::RepositoryError)?;
 	let mut commits = repo.get_commits(&main_branch).map_err(|_| PipelineError::RepositoryError)?;
