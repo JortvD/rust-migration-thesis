@@ -9,15 +9,18 @@ pub struct TruckStats {
     num_authors_merged: usize,
     num_authors: usize,
     num_doa_authors: usize,
+    num_doa_authors_decay: usize,
     num_doa_files: usize,
     truck_factor: u64,
+    truck_factor_decay: u64,
     gini_coefficient: f64,
+    gini_coefficient_decay: f64,
 }
 
 impl TruckStats {
     pub fn to_csv(&self, index: usize, commit: &str) -> String {
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             index,
             commit,
             self.num_commits,
@@ -26,18 +29,21 @@ impl TruckStats {
             self.num_authors_merged,
             self.num_authors,
             self.num_doa_authors,
+            self.num_doa_authors_decay,
             self.num_doa_files,
             self.truck_factor,
+            self.truck_factor_decay,
             self.gini_coefficient,
+            self.gini_coefficient_decay
         )
     }
 
     pub fn header() -> String {
-        "index,commit,num_commits,num_files,num_vendored_files,num_authors_merged,num_authors,num_doa_authors,num_doa_files,truck_factor,gini_coefficient\n".to_string()
+        "index,commit,num_commits,num_files,num_vendored_files,num_authors_merged,num_authors,num_doa_authors,num_doa_authors_decay,num_doa_files,truck_factor,truck_factor_decay,gini_coefficient,gini_coefficient_decay\n".to_string()
     }
 }
 
-pub fn get_truck_statistics(repo_path_str: &str) -> TruckStats {
+pub fn get_truck_statistics(repo_path_str: &str, commit_time: chrono::DateTime<chrono::Utc>) -> TruckStats {
     let repo_path = Path::new(repo_path_str);
     let repo = git::Repo { path: repo_path };
     
@@ -53,8 +59,13 @@ pub fn get_truck_statistics(repo_path_str: &str) -> TruckStats {
 
     let doa_files = doa::prepare_for_doa(&file_names, &commits);
 
-    let tf = tf::calculate_truck_factor(&doa_files);
-    let gini = gini::calculate_gini(&doa_files);
+    let full_authors = tf::get_authors_map(&doa_files);
+    let full_tf = tf::calculate_truck_factor(&mut full_authors.clone());
+    let full_gini = gini::calculate_gini(&mut full_authors.clone());
+
+    let decay_authors = tf::get_decay_authors_map(&doa_files, 80.0, commit_time);
+    let decay_tf = tf::calculate_truck_factor(&mut decay_authors.clone());
+    let decay_gini = gini::calculate_gini(&mut decay_authors.clone());
 
     TruckStats {
         num_commits: commits.len(),
@@ -62,9 +73,12 @@ pub fn get_truck_statistics(repo_path_str: &str) -> TruckStats {
         num_vendored_files: files.iter().filter(|f| f.filtered).count(),
         num_authors_merged,
         num_authors,
-        num_doa_authors: tf.1.len(),
+        num_doa_authors: full_authors.len(),
+        num_doa_authors_decay: decay_authors.len(),
         num_doa_files: doa_files.len(),
-        truck_factor: tf.0,
-        gini_coefficient: gini,
+        truck_factor: full_tf,
+        truck_factor_decay: decay_tf,
+        gini_coefficient: full_gini,
+        gini_coefficient_decay: decay_gini,
     }
 }

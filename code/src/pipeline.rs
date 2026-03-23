@@ -49,7 +49,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 
 	let repo = RepositoryInfo::clone_or_open(&data.author, &data.name, &temp_dir).map_err(|_| PipelineError::RepositoryError)?;
 
-	szz::run(&bar, &name, &temp_dir, &results_folder);
+	// szz::run(&bar, &name, &temp_dir, &results_folder);
 
 	let main_branch = repo.get_main_branch().ok_or_else(|| PipelineError::RepositoryError)?;
 	let mut commits = repo.get_commits(&main_branch).map_err(|_| PipelineError::RepositoryError)?;
@@ -86,6 +86,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
         };
 		let checkout_ms = start_time.elapsed().as_millis();
 		bar.set_message(format!("{} [{}/{}] Checked out commit {} in {} ms, running analysis...", name, i + 1, total_samples, &commit.id().to_string()[..8], checkout_ms));
+		let commit_time = chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error");
 
 		let start_time = std::time::Instant::now();
 		let result = collect_repository(&temp_dir);
@@ -99,7 +100,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 				"{},{},{},{},{},{},{},{},{},,Analysis failed because {:?}\n", 
 				i,
 				commit_oid, 
-				chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
+				commit_time,
 				checkout_ms,
 				analysis_ms,
 				0,
@@ -119,7 +120,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 		let save_ms = start_time.elapsed().as_millis();
 
 		let start_time = std::time::Instant::now();
-		let stats = truck::get_truck_statistics(&temp_dir);
+		let stats = truck::get_truck_statistics(&temp_dir, commit_time);
 		let truck_ms = start_time.elapsed().as_millis();
 
 		truck_wtr.write_all(stats.to_csv(i, &commit_oid.to_string()).as_bytes()).map_err(|_| PipelineError::FileError)?;
@@ -128,7 +129,7 @@ pub fn run_pipeline(data: &InputData, bar: &ProgressBar, overall_bar: &ProgressB
 			"{},{},{},{},{},{},{},{},\n", 
 			i,
 			commit_oid, 
-			chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
+			commit_time,
 			checkout_ms,
 			analysis_ms,
 			save_ms,
