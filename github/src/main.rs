@@ -251,13 +251,13 @@ async fn main() -> AppResult<()> {
             fs::create_dir_all(&results_folder).await?;
         }
 
-        // if let Err(e) = fetch_issues(&line, &results_folder, &client).await {
-        //     eprintln!("Error fetching issues for {}: {}", &line.name, e);
-        // }
+        if let Err(e) = fetch_issues(&line, &results_folder, &client).await {
+            eprintln!("Error fetching issues for {}: {}", &line.name, e);
+        }
 
-        // if let Err(e) = fetch_releases(&line, &results_folder, &client).await {
-        //     eprintln!("Error fetching releases for {}: {}", &line.name, e);
-        // }
+        if let Err(e) = fetch_releases(&line, &results_folder, &client).await {
+            eprintln!("Error fetching releases for {}: {}", &line.name, e);
+        }
 
         if let Err(e) = fetch_security_advisories(&line, &results_folder, &client).await {
             eprintln!("Error fetching security advisories for {}: {}", &line.name, e);
