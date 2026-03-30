@@ -129,15 +129,15 @@ pub fn run_analysis_for_repo(
 		bar
 	);
 	
-	match gather_result {
-		Ok(stats) => {
-			analyze::run_analysis(stats, bar);
-			bar.set_message(format!("{}: Completed analysis", repo_full_name));
-		}
-		Err(e) => {
-			bar.set_message(format!("{}: Error during gathering: {:?}", repo_full_name, e));
-		}
-	}
+	// match gather_result {
+	// 	Ok(stats) => {
+	// 		analyze::run_analysis(stats, bar);
+	// 		bar.set_message(format!("{}: Completed analysis", repo_full_name));
+	// 	}
+	// 	Err(e) => {
+	// 		bar.set_message(format!("{}: Error during gathering: {:?}", repo_full_name, e));
+	// 	}
+	// }
 	clean_temp_dir(&temp_dir);
 	//clean_symbols(&result_folder);
 }

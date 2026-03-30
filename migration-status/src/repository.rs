@@ -142,7 +142,9 @@ impl BareRepositoryInfo {
 
         loop {
             let commit = self.repository.find_commit(oid)?;
-            commits.push(oid);
+            if commit.committer().when().seconds() <= 1765411200 {
+                commits.push(oid);
+            }
 
             if commit.parent_count() == 0 {
                 break;

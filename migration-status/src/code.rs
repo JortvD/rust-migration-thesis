@@ -6,7 +6,7 @@ use std::path::Path;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 
-use tree_sitter::{Language, Parser};
+use tree_sitter::{Language, Node, Parser};
 use walkdir::WalkDir;
 
 use crate::pipeline::SymbolsError;
@@ -317,11 +317,40 @@ pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<Hash
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SymbolData {
     pub name: String,
+    pub kind: String,
     pub parent_kind: Option<String>,
     pub grandparent_kind: Option<String>,
     pub great_grandparent_kind: Option<String>,
+    pub field: Option<String>,
+    pub parent_field: Option<String>,
+    pub grandparent_field: Option<String>,
+    pub great_grandparent_field: Option<String>,
     pub path: String,
     pub start: usize,
+}
+
+fn get_node_field_name(node: Node) -> Option<&'static str> {
+    let parent = node.parent()?;
+    let mut cursor = parent.walk();
+
+    if cursor.goto_first_child_for_byte(node.start_byte()).is_some() {
+        loop {
+            let current = cursor.node();
+            
+            if current == node {
+                return cursor.field_name();
+            }
+
+            if current.start_byte() > node.start_byte() {
+                break;
+            }
+
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    None
 }
 
 pub fn extensive_extract_symbols_for_language(
@@ -354,9 +383,14 @@ pub fn extensive_extract_symbols_for_language(
             if let Some(text) = node.utf8_text(source.as_bytes()).ok() {
                 out.insert(Box::new(SymbolData {
                     name: text.to_string(),
+                    kind: kind.to_string(),
                     parent_kind: parent.map(|p| p.kind().to_string()),
+                    field: get_node_field_name(node).map(|s| s.to_string()),
                     grandparent_kind: grandparent.map(|gp| gp.kind().to_string()),
+                    parent_field: parent.and_then(get_node_field_name).map(|s| s.to_string()),
                     great_grandparent_kind: great_grandparent.map(|ggp| ggp.kind().to_string()),
+                    grandparent_field: grandparent.and_then(get_node_field_name).map(|s| s.to_string()),
+                    great_grandparent_field: great_grandparent.and_then(get_node_field_name).map(|s| s.to_string()),
                     path: relative_path.clone(),
                     start: node.start_byte(),
                 }));

@@ -1,4 +1,5 @@
 use std::{fs, panic, thread};
+use std::io::Write;
 use std::panic::AssertUnwindSafe;
 use std::path::Path;
 use std::sync::{Arc, mpsc, Mutex};
@@ -8,8 +9,9 @@ use indicatif::ProgressBar;
 use tokei::{Config, LanguageType, Languages};
 use chrono;
 use std::collections::{HashMap, HashSet};
-use crate::code::{self, SupportedLanguage};
+use crate::code::{self, SupportedLanguage, SymbolData};
 
+use crate::pipeline::SymbolsError;
 use crate::repository;
 
 #[derive(Debug)]
@@ -74,7 +76,7 @@ fn select_evenly_spread_commits_and_checkout_each(
     temp_dir: &str, 
     num_commits: usize, 
     bar: &ProgressBar,
-    func: &mut dyn FnMut(usize, &String) -> bool,
+    func: &mut dyn FnMut(usize, &String, &git2::Commit) -> bool,
 )-> Result<(), GatherError> {
     if !Path::new(temp_dir).exists() {
         fs::create_dir_all(temp_dir).map_err(|_| GatherError::TempDirCreationError)?;
@@ -117,7 +119,7 @@ fn select_evenly_spread_commits_and_checkout_each(
         // bar.set_message(format!("{}: {}_{} - Checked out commit {} at {}", i, owner, repo, &commit.id().to_string()[..8], chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error")));
         bar.inc(1);
 
-        func(i, &temp_repo_dir);
+        func(i, &temp_repo_dir, &commit);
         // let (tx, rx) = mpsc::channel();
         // let func_clone = Arc::clone(&func_arc);
         // let dir_clone = temp_repo_dir.clone();
@@ -172,31 +174,69 @@ pub struct AnalyzeResult {
     pub symbols: HashSet<code::SupportedLanguage>,
 }
 
+fn clean_text(text: Option<String>) -> String {
+    text.map(|s| s.replace('\n', " ").replace('\r', " ")).unwrap_or_default()
+}
+
 pub fn analyze_commit(
     result_dir: &str,
     index: usize,
     dir: &String,
 ) -> AnalyzeResult {
-    let path = Path::new(dir);
-    let paths = [dir.as_str()];
-    let excluded: [&str; 0] = [];
-    let config = Config::default();
+    // let path = Path::new(dir);
+    // let paths = [dir.as_str()];
+    // let excluded: [&str; 0] = [];
+    // let config = Config::default();
 
-    let language_map = code::find_symbols(&result_dir, index, path).unwrap_or_default();
+    // let language_map = code::find_symbols(&result_dir, index, path).unwrap_or_default();
+    let total = code::extensive_find_symbols(Path::new(dir), 1_000_000_000, &|i: usize, symbols_result: HashMap<SupportedLanguage, HashSet<Box<SymbolData>>>| -> Result<(), SymbolsError> {
+        let symbols_file = format!("{}/{}_symbols.csv.gz", result_dir, index);
+        let gz_file = fs::File::create(&symbols_file)
+			.map_err(|_| SymbolsError::ResultsWriteError)?;
+        let mut encoder = flate2::write::GzEncoder::new(gz_file, flate2::Compression::default());
 
-    let mut languages = Languages::new();
-    languages.get_statistics(&paths, &excluded, &config);
-    let mut lang_stats = HashMap::new();
-    let total_loc = languages.total().code as f64;
-    for (lang, stats) in languages.iter() {
-        let loc = stats.code;
-        let loc_pct = loc as f64 / total_loc.max(1.0);
-        lang_stats.insert(*lang, (loc_pct, loc, stats.blanks, stats.comments));
-    }
+        writeln!(
+            encoder,
+            "Language,File,Start,Name,Field,ParentKind,ParentField,GrandparentKind,GrandparentField,GreatGrandparentKind,GreatGrandparentField"
+        ).map_err(|_| SymbolsError::ResultsWriteError)?;
+
+        for (lang, symbols) in symbols_result {
+            for symbol in symbols {
+                writeln!(
+                    encoder,
+                    "{},{},{},{},{},{},{},{},{},{},{},{}",
+                    lang.to_string(),
+                    symbol.path,
+                    symbol.start,
+                    clean_text(Some(symbol.name)),
+                    clean_text(Some(symbol.kind)),
+                    clean_text(symbol.field),
+                    clean_text(symbol.parent_kind),
+                    clean_text(symbol.parent_field),
+                    clean_text(symbol.grandparent_kind),
+                    clean_text(symbol.grandparent_field),
+                    clean_text(symbol.great_grandparent_kind),
+                    clean_text(symbol.great_grandparent_field),
+                ).map_err(|_| SymbolsError::ResultsWriteError)?;
+            }
+        }
+        encoder.finish().map_err(|_| SymbolsError::ResultsWriteError)?;
+        Ok(())
+    });
+
+    // let mut languages = Languages::new();
+    // languages.get_statistics(&paths, &excluded, &config);
+    // let mut lang_stats = HashMap::new();
+    // let total_loc = languages.total().code as f64;
+    // for (lang, stats) in languages.iter() {
+    //     let loc = stats.code;
+    //     let loc_pct = loc as f64 / total_loc.max(1.0);
+    //     lang_stats.insert(*lang, (loc_pct, loc, stats.blanks, stats.comments));
+    // }
 
     AnalyzeResult {
-        lang_stats,
-        symbols: language_map,
+        lang_stats: HashMap::new(),
+        symbols: HashSet::new(),
     }
 }
 
@@ -235,7 +275,18 @@ pub fn gather_repository_statistics(
     let mut symbols = Vec::new();
     let mut lang_stats = Vec::new();
 
-    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, bar, &mut |i: usize, dir: &String| {
+    let mut commits_writer = fs::File::create(format!("{}/metadata.csv", result_dir)).expect("Failed to create commits file");
+    writeln!(commits_writer, "index,commit_oid,commit_time,commit_summary").expect("Failed to write to commits file");
+
+    select_evenly_spread_commits_and_checkout_each(owner, repo, temp_dir, num_commits, bar, &mut |i: usize, dir: &String, commit: &git2::Commit| {
+        writeln!(
+            commits_writer,
+            "{},{},{},{}",
+            i,
+            commit.id().to_string(),
+            chrono::DateTime::<chrono::Utc>::from_timestamp_secs(commit.time().seconds()).expect("Error"),
+            commit.summary().unwrap_or("").replace('\n', " ").replace('\r', " ")
+        ).expect("Failed to write to commits file");
         let analyze_result = analyze_commit(&result_dir, i, dir);
         symbols.push(analyze_result.symbols);
         lang_stats.push(analyze_result.lang_stats);
