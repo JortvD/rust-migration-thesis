@@ -73,11 +73,13 @@ async fn fetch_issue_timeline(client: &Client, url: &str, file_path: &Path) -> A
 
 async fn fetch_issues(project: &InputData, results_folder: &Path, client: &Client) -> AppResult<()> {
     let mut page = 1;
+    let mut since = "2000-01-01T00:00:00Z".to_string();
+    let mut latest_since = since.clone();
 
     loop {
         let url = format!(
-            "https://api.github.com/repos/{}/{}/issues?state=all&per_page=100&page={}",
-            project.author, project.name, page
+            "https://api.github.com/repos/{}/{}/issues?sort=updated&direction=asc&state=all&per_page=100&page={}&since={}",
+            project.author, project.name, page, since
         );
 
         println!("Fetching issues for {}/{} on page {}", project.author, project.name, page);
@@ -98,8 +100,14 @@ async fn fetch_issues(project: &InputData, results_folder: &Path, client: &Clien
             }
 
             let issue_number = issue.get("number").and_then(|n| n.as_i64()).unwrap_or(0);
+            let updated_at = issue.get("updated_at").and_then(|s| s.as_str()).unwrap_or(&latest_since);
+            latest_since = updated_at.to_string();
             
             let issue_file_path = results_folder.join(format!("issue_{}.json", issue_number));
+            if issue_file_path.exists() {
+                println!("Issue {} already exists, skipping...", issue_number);
+                continue;
+            }
             let issue_json = serde_json::to_string_pretty(&issue)?;
             fs::write(&issue_file_path, issue_json).await?;
 
@@ -119,7 +127,14 @@ async fn fetch_issues(project: &InputData, results_folder: &Path, client: &Clien
             break;
         }
 
-        page += 1;
+        if page == 99 {
+            since = latest_since.clone();
+            page = 1;
+            println!("Reached page 100, updating 'since' to {} and resetting page to 1", since);
+        } else {
+            page += 1;
+        }
+
         sleep(Duration::from_millis(100)).await;
     }
 
@@ -255,13 +270,13 @@ async fn main() -> AppResult<()> {
             eprintln!("Error fetching issues for {}: {}", &line.name, e);
         }
 
-        if let Err(e) = fetch_releases(&line, &results_folder, &client).await {
-            eprintln!("Error fetching releases for {}: {}", &line.name, e);
-        }
+        // if let Err(e) = fetch_releases(&line, &results_folder, &client).await {
+        //     eprintln!("Error fetching releases for {}: {}", &line.name, e);
+        // }
 
-        if let Err(e) = fetch_security_advisories(&line, &results_folder, &client).await {
-            eprintln!("Error fetching security advisories for {}: {}", &line.name, e);
-        }
+        // if let Err(e) = fetch_security_advisories(&line, &results_folder, &client).await {
+        //     eprintln!("Error fetching security advisories for {}: {}", &line.name, e);
+        // }
     }
 
     Ok(())
