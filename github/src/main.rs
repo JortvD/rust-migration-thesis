@@ -82,7 +82,7 @@ async fn fetch_issues(project: &InputData, results_folder: &Path, client: &Clien
             project.author, project.name, page, since
         );
 
-        println!("Fetching issues for {}/{} on page {}", project.author, project.name, page);
+        println!("Fetching issues for {}/{} on page {} from {}", project.author, project.name, page, since);
 
         let json_response = fetch_with_retry(client, &url).await?;
         let page_issues = json_response.as_array().ok_or("API did not return a JSON array")?;
@@ -91,7 +91,9 @@ async fn fetch_issues(project: &InputData, results_folder: &Path, client: &Clien
             break;
         }
 
-        println!("Fetched {} issues on page {}", page_issues.len(), page);
+        let num_prs = page_issues.iter().filter(|issue| issue.get("pull_request").is_some()).count();
+
+        println!("Fetched {} issues (of which {} are pull requests) on page {} from {}", page_issues.len(), num_prs, page, since);
 
         for issue in page_issues {
             // Skip pull requests
