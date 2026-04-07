@@ -256,12 +256,17 @@ async fn main() -> AppResult<()> {
     let client = build_client()?;
     let lines = get_input("input.txt").expect("Failed to read input.txt");
 
+    let result_root = PathBuf::from(
+        std::env::args()
+            .nth(1)
+            .ok_or("missing result path argument")?,
+    );
+
     for line in lines {
-        let results_folder = PathBuf::from(format!("results/{}_{}", line.author, line.name));
+        let results_folder = PathBuf::from(format!("{}/{}_{}", result_root.display(), line.author, line.name));
         
         if results_folder.exists() {
-            eprintln!("Results folder for {} already exists, skipping...", &line.name);
-            continue;
+            eprintln!("Results folder for {} already exists", &line.name);
         } else {
             fs::create_dir_all(&results_folder).await?;
         }
