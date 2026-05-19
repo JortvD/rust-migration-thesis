@@ -147,6 +147,7 @@ fn normalize_name(name: &str) -> String {
 
 const MIN_SYMBOL_NAME_LENGTH: usize = 4;
 
+// DFS over the AST to collect all nodes whose kind contains "identifier" or "name", normalised and deduplicated.
 pub fn extract_symbols_for_language(
     parser: &mut Parser,
     source: &str,
@@ -242,6 +243,7 @@ pub fn find_symbols_local(root: &Path) -> Result<HashMap<SupportedLanguage, Hash
     Ok(symbols_map)
 }
 
+// Extracts identifiers per language and appends them to per-language files on disk, deduplicating against what is already written.
 pub fn find_symbols(results_dir: &str, index: usize, root: &Path) -> Result<HashSet<SupportedLanguage>, Box<dyn std::error::Error>> {
     let mut parser_map: HashMap<SupportedLanguage, Parser> = HashMap::new();
     let mut file_count = 0;
@@ -329,6 +331,7 @@ pub struct SymbolData {
     pub start: usize,
 }
 
+// Walks the parent's children to find the named field this node occupies in its parent's grammar rule.
 fn get_node_field_name(node: Node) -> Option<&'static str> {
     let parent = node.parent()?;
     let mut cursor = parent.walk();
@@ -353,6 +356,7 @@ fn get_node_field_name(node: Node) -> Option<&'static str> {
     None
 }
 
+// Like extract_symbols_for_language but also captures the surrounding AST context (parent, grandparent, great-grandparent kinds and field names).
 pub fn extensive_extract_symbols_for_language(
     parser: &mut Parser,
     relative_path: String,
@@ -438,6 +442,7 @@ pub fn extensive_extract_symbols_for_file(
     Ok(true)
 }
 
+// Walks the directory tree, extracting all identifiers and flushing them to disk via the save callback once per_file symbols have accumulated.
 pub fn extensive_find_symbols(
     root: &Path,
     per_file: usize,

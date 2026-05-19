@@ -132,6 +132,7 @@ impl BareRepositoryInfo {
         Ok(oid)
     }
 
+    // Follows the first-parent chain from the branch tip and excludes commits dated after May 2026 to avoid collecting future commits during a long-running analysis.
     pub fn get_commits(&self, branch_ref: &str) -> Result<Vec<git2::Oid>, git2::Error> {
         let reference = self.repository.find_reference(&branch_ref)?;
         let mut oid = reference
@@ -155,6 +156,7 @@ impl BareRepositoryInfo {
         Ok(commits)
     }
 
+    // Uses git archive to stream the commit tree directly into a directory, which is significantly faster than a standard git checkout on a bare repository.
     pub fn checkout_commit(&self, oid: git2::Oid, branch_ref: &str) -> Result<git2::Commit<'_>, git2::Error> {
         let commit = self.repository.find_commit(oid)?;
 

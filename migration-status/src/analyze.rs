@@ -27,6 +27,7 @@ struct SymbolAnalysis {
 	movement: HashMap<(code::SupportedLanguage, code::SupportedLanguage), SymbolMovement>,
 }
 
+// Counts overlapping and moved identifiers for every language pair between two commit snapshots.
 fn analyze_symbols (
 	symbols_before: &HashMap<code::SupportedLanguage, HashSet<CompactSymbol>>,
 	symbols_after: &HashMap<code::SupportedLanguage, HashSet<CompactSymbol>>,
@@ -34,6 +35,8 @@ fn analyze_symbols (
 
 	let mut movement = HashMap::new();
 
+	// Count how many languages each identifier appears in after the snapshot; identifiers
+	// with count == 1 are exclusively in one language, which is the definition of "moved".
 	let mut after_symbol_counts: HashMap<u64, usize> = HashMap::new();
     for names in symbols_after.values() {
         for name in names {
@@ -113,6 +116,7 @@ fn language_presence_analysis(repo_stats: &RepositoryStats) {
 	writer.finish().expect("Failed to finish writing language presence file");
 }
 
+// Hashes an identifier string to a 64-bit integer to reduce memory usage; collisions are acceptable at ~0.03% probability.
 fn compute_compact_symbol(text: &str) -> CompactSymbol {
     let mut s = DefaultHasher::new();
     text.hash(&mut s);
@@ -146,6 +150,7 @@ fn get_symbols(
     symbols_map
 }
 
+// Compares every pair of commit snapshots (O(n^2)) to measure identifier movement and overlap over time.
 fn identifier_analysis(
 	repo_stats: &RepositoryStats,
 	pb: &ProgressBar,

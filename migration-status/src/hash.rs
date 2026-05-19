@@ -26,6 +26,7 @@ const LANGUAGES: [&str; 24] = [
     "Rust", "C", "C++", "C#", "JavaScript", "TypeScript", "TSX", "Python", "Go", "Java", "Swift", "Dart", "Elixir", "Haskell", "Lua", "OCaml", "Ruby", "PHP", "Nix", "Bash", "Scala", "Scala", "Objective-C", "Clojure"
 ];
 
+// Iterates over all gzipped symbol files in a folder and calls callback with each normalised identifier and its language; handles identifiers that were split across lines during CSV writing.
 fn scan_repo_identifiers<F>(folder: &Path, mut callback: F)
 where
     F: FnMut(&str, &str),
@@ -102,6 +103,7 @@ pub fn get_identifiers_for_repo(folder: PathBuf) -> HashSet<String> {
     identifiers
 }
 
+// Builds a SuperMinHash signature (1024 hashes) per language for a project and appends them to the shared binary output in length-prefixed format.
 pub fn hash_for_project(
     folder: PathBuf,
     output: &Arc<Mutex<BufWriter<File>>>,
@@ -151,6 +153,7 @@ pub struct HashData {
     pub hashes: Vec<u64>,
 }
 
+// Deserialises the binary file written by hash_for_project: each entry is stored as length-prefixed name, language, and hash array.
 pub fn read_hash_data(file_path: &str) -> Vec<HashData> {
     let file = File::open(file_path).expect("Failed to open binary hashes file");
     let mut reader = BufReader::with_capacity(1024 * 1024, file);

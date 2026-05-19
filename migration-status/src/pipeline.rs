@@ -500,6 +500,7 @@ pub struct RustRepoData {
 	pub rust_percentage: f64,
 }
 
+// For each Rust repository, ranks all non-Rust repositories by Jaccard similarity and writes the top-5 matches to the output CSV.
 pub fn run_symbols_compare_all_pipeline(
 	input: &str,
 	repositories: &str,
@@ -598,6 +599,7 @@ pub fn run_symbols_compare_all_pipeline(
 	}
 }
 
+// Paginates through GitHub Search in ascending star order so repositories that gain stars mid-collection are not missed; resets to page 1 whenever the star threshold advances.
 pub async fn run_symbols_collect_pipeline(
 	min_stars: &u32,
 ) {
@@ -688,6 +690,7 @@ pub async fn run_symbols_collect_pipeline(
 	}
 }
 
+// Computes MinHash signatures for all new symbol folders in parallel; panics in worker threads are caught and logged rather than crashing the whole run.
 pub fn run_symbols_hash_pipeline(
 	input: &str,
 	output: &str,

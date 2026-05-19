@@ -54,6 +54,7 @@ pub fn get_repo_symbols(name: &str) -> Result<HashMap<SupportedLanguage, HashSet
     Ok(HashMap::new()) //symbols
 }
 
+// Returns max_samples indices spread evenly from 0 to total-1, always including both endpoints.
 fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
     if total == 0 || max_samples == 0 {
         return Vec::new();
@@ -70,11 +71,12 @@ fn sample_indices(total: usize, max_samples: usize) -> Vec<usize> {
         .collect()
 }
 
+// Clones the repo as a bare repository and checks out each sampled commit via git archive to avoid full working-directory overhead.
 fn select_evenly_spread_commits_and_checkout_each(
-    owner: &str, 
-    repo: &str, 
-    temp_dir: &str, 
-    num_commits: usize, 
+    owner: &str,
+    repo: &str,
+    temp_dir: &str,
+    num_commits: usize,
     bar: &ProgressBar,
     func: &mut dyn FnMut(usize, &String, &git2::Commit) -> bool,
 )-> Result<(), GatherError> {
@@ -178,6 +180,7 @@ fn clean_text(text: Option<String>) -> String {
     text.map(|s| s.replace('\n', " ").replace('\r', " ")).unwrap_or_default()
 }
 
+// Extracts identifiers and LOC stats for a single checked-out commit and writes them to disk; returns empty structs because data is persisted rather than held in memory.
 pub fn analyze_commit(
     result_dir: &str,
     index: usize,
