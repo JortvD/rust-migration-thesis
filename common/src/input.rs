@@ -10,6 +10,8 @@ fn read_input(file_path: &str) -> Result<String, std::io::Error> {
 pub struct InputData {
 	pub author: String,
 	pub name: String,
+	pub orig_author: Option<String>,
+	pub orig_name: Option<String>,
 }
 
 fn process_input(input: &str) -> Vec<InputData> {
@@ -19,8 +21,18 @@ fn process_input(input: &str) -> Vec<InputData> {
 			Some(InputData {
 				author: parts[0].to_string(),
 				name: parts[1].to_string(),
+				orig_author: None,
+				orig_name: None,
+			})
+		} else if parts.len() == 4 {
+			Some(InputData {
+				author: parts[0].to_string(),
+				name: parts[1].to_string(),
+				orig_author: Some(parts[2].to_string()),
+				orig_name: Some(parts[3].to_string()),
 			})
 		} else {
+			eprintln!("Invalid line format: {}", line);
 			None
 		}
 	}).collect()

@@ -23,6 +23,13 @@ github/input*
 github/results/*
 github/.env
 
+analysis/results/*
+analysis/input/*
+analysis/plot.ipynb
+analysis/table.ipynb
+
+__pycache__/
+
 migration-status/analysis.ipynb
 migration-status/analysis2.ipynb
 migration-status/check-status copy 2.ipynb

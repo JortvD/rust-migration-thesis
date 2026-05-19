@@ -1,8 +1,5 @@
-use std::{collections::HashSet, fs, io::{BufRead, Write}, path::Path};
-
 use clap::{Parser, Subcommand};
 use dotenv::dotenv;
-use probminhash::superminhasher2::get_jaccard_index_estimate;
 use rayon::ThreadPoolBuilder;
 
 #[cfg(feature = "dhat-heap")]
@@ -15,7 +12,6 @@ mod code;
 mod analyze;
 mod pipeline;
 mod consts;
-mod math;
 mod hash;
 
 #[derive(Parser)]
@@ -27,6 +23,8 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
+    // Collect Rust repositories and their metadata, with optional filtering by stars
+    // Note: this is an old version which is not used for the results in the thesis
     Collect {
         #[arg(
             long,
@@ -41,6 +39,7 @@ enum Commands {
         )]
         output: String,
     },
+    // Collect identifiers over time for a list of repositories
     Analysis {
         #[arg(
             long,
@@ -56,23 +55,28 @@ enum Commands {
         )]
         output: String,
     },
+    // Perform the analysis pipeline for a single repository
     Single {
         name: String,
         output: String,
     },
+    // Compare the identifiers that overlap and moved between two points in time for a single repository
     Identifiers {
         name: String,
         from: usize,
         to: usize,
     },
+    // Find the overlapping identifiers for all languages in the from repository to Rust in the to repository
     Sim {
         from: String,
         to: String,
     },
+    // Calculate the actual overlap between two repositories
     Compare {
         from: String,
         to: String,
     },
+    // Collect the identifiers for a list of repositories, only at the latest commit
     Symbols {
         #[arg(
             long,
@@ -88,6 +92,7 @@ enum Commands {
         )]
         output: String,
     },
+    // Collect the identifiers for a single repository, only at the latest commit
     SymbolsSingle {
         name: String,
         main_branch: String,
@@ -99,6 +104,7 @@ enum Commands {
         )]
         output: String,
     },
+    // Collect all repositories and their metadata that have at least a certain number of stars
     SymbolsCollect {
         #[arg(
             long,
@@ -107,6 +113,7 @@ enum Commands {
         )]
         min_stars: u32,
     },
+    // Hash the collected identifiers for a list of repositories
     SymbolsHash {
         #[arg(
             long,
@@ -122,6 +129,7 @@ enum Commands {
         )]
         output: String,
     },
+    // Generate the closest matches for a specific repositories that were collected, for any language to the specified language
     SymbolsCompare {
         from: String,
 
@@ -146,6 +154,7 @@ enum Commands {
         )]
         language: String,
     },
+    // Generate the closest matches for all repositories that were collected, for any language to Rust
     SymbolsCompareAll {
         #[arg(
             long,
@@ -193,6 +202,7 @@ async fn main() {
 
     ThreadPoolBuilder::new()
         .stack_size(16 * 1024 * 1024)
+        .num_threads(12)
         .build_global().unwrap();
 
     let args = Args::parse();
@@ -219,40 +229,7 @@ async fn main() {
             from,
             to,
         }) => {
-            let from_symbols = gather::get_repo_symbols(from).expect("Failed to get symbols for 'from' repository");
-            let to_symbols = gather::get_repo_symbols(to).expect("Failed to get symbols for 'to' repository");
-
-            for from_lang in from_symbols.keys() {
-                for to_lang in to_symbols.keys() {
-                    let from_set = from_symbols.get(from_lang).unwrap();
-                    let to_set = to_symbols.get(to_lang).unwrap();
-
-                    let common: HashSet<_> = from_set.intersection(to_set).collect();
-                    let common_count = common.len();
-                    let from_pct = if !from_set.is_empty() {
-                        common_count as f64 / from_set.len() as f64 * 100.0
-                    } else {
-                        0.0
-                    };
-                    let to_pct = if !to_set.is_empty() {
-                        common_count as f64 / to_set.len() as f64 * 100.0
-                    } else {
-                        0.0
-                    };
-
-                    println!("Common symbols between {}'s {:?} and {}'s {:?}: {} (from {} or {:.2}% to {} or {:.2}%)", 
-                        from,
-                        from_lang,
-                        to,
-                        to_lang,
-                        common_count,
-                        from_set.len(),
-                        from_pct,
-                        to_set.len(),
-                        to_pct
-                    );
-                }
-            }
+            pipeline::run_symbols_compare(from, to);
         }
         Some(Commands::Single {
             name,

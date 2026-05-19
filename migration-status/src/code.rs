@@ -433,10 +433,6 @@ pub fn extensive_extract_symbols_for_file(
 
     let out_set = symbols_map.entry(lang).or_insert_with(HashSet::new);
 
-    // println!("Extracting for: {:?}, size: {}, language: {:?}", path, src.len(), lang);
-    // if (lang == SupportedLanguage::Cpp || lang == SupportedLanguage::C) && src.len() > 200_000 {
-    //     return Ok(false);
-    // }
     extensive_extract_symbols_for_language(parser, relative_path, lang, &src, out_set);
 
     Ok(true)

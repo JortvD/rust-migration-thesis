@@ -1,6 +1,6 @@
 use std::fs;
 use serde::Serialize;
-use git2::{Oid, Repository};
+use git2::{Oid, Repository, Patch};
 
 #[derive(Debug, Clone, Serialize)]
 struct FileChange {
@@ -9,6 +9,8 @@ struct FileChange {
     status: String,
     old_is_binary: bool,
     new_is_binary: bool,
+    lines_added: usize,
+    lines_deleted: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -59,13 +61,30 @@ pub fn run(commits: &Vec<Oid>, repo: &Repository, result_folder: &str) {
 
         let diff_stats = diff.stats().ok()?;
 
-        let file_details: Vec<FileChange> = diff.deltas().map(|delta| {
+        let file_details: Vec<FileChange> = diff.deltas().enumerate().map(|(idx, delta)| {
+            let old_is_binary = delta.old_file().is_binary();
+            let new_is_binary = delta.new_file().is_binary();
+            
+            let mut lines_added = 0;
+            let mut lines_deleted = 0;
+
+            if !old_is_binary && !new_is_binary {
+                if let Ok(Some(patch)) = Patch::from_diff(&diff, idx) {
+                    if let Ok((_context, additions, deletions)) = patch.line_stats() {
+                        lines_added = additions;
+                        lines_deleted = deletions;
+                    }
+                }
+            }
+
             FileChange {
                 old_path: delta.old_file().path().map(|p| p.to_string_lossy().into_owned()),
                 new_path: delta.new_file().path().map(|p| p.to_string_lossy().into_owned()),
                 status: format!("{:?}", delta.status()),
-                old_is_binary: delta.old_file().is_binary(),
-                new_is_binary: delta.new_file().is_binary(),
+                old_is_binary,
+                new_is_binary,
+                lines_added,
+                lines_deleted,
             }
         }).collect();
 

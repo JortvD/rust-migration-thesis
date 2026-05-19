@@ -6,9 +6,7 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::thread;
 
-use bio::io::common;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use probminhash::superminhasher2::get_jaccard_index_estimate;
 
@@ -73,25 +71,6 @@ pub fn clean_temp_dir(
 	}
 }
 
-pub fn clean_symbols(
-	results_folder: &str,
-) {
-	let path = Path::new(results_folder);
-	if path.exists() {
-		let entries = fs::read_dir(path).expect("Failed to read results directory");
-
-		for entry in entries {
-			let entry = entry.expect("Failed to read directory entry");
-			let file_name = entry.file_name();
-			let file_name_str = file_name.to_string_lossy();
-
-			if file_name_str.ends_with("symbols.txt") {
-				fs::remove_file(entry.path()).expect("Failed to remove symbols file");
-			}
-		}
-	}
-}
-
 pub fn run_analysis_for_repo(
 	repo_full_name: &str,
 	output_dir: &str,
@@ -129,15 +108,15 @@ pub fn run_analysis_for_repo(
 		bar
 	);
 	
-	// match gather_result {
-	// 	Ok(stats) => {
-	// 		analyze::run_analysis(stats, bar);
-	// 		bar.set_message(format!("{}: Completed analysis", repo_full_name));
-	// 	}
-	// 	Err(e) => {
-	// 		bar.set_message(format!("{}: Error during gathering: {:?}", repo_full_name, e));
-	// 	}
-	// }
+	match gather_result {
+		Ok(stats) => {
+			analyze::run_analysis(stats, bar);
+			bar.set_message(format!("{}: Completed analysis", repo_full_name));
+		}
+		Err(e) => {
+			bar.set_message(format!("{}: Error during gathering: {:?}", repo_full_name, e));
+		}
+	}
 	clean_temp_dir(&temp_dir);
 	//clean_symbols(&result_folder);
 }
@@ -575,7 +554,6 @@ pub fn run_symbols_compare_all_pipeline(
 
 	for repo in &unique_repos {
 		let name = repo.name.replace("/", "_");
-		let start_time = std::time::Instant::now();
 		let from: Option<&HashData> = hash_data_list.iter()
 			.find(|hd| hd.project == name && hd.language == "Rust");
 
@@ -816,6 +794,46 @@ pub fn run_symbols_hash_pipeline(
 	writer.lock().unwrap().flush().unwrap();
 
 	overall_bar.finish_with_message("Hashing completed.");
+}
+
+pub fn run_symbols_compare(
+	from: &String,
+	to: &String,
+) {
+	let from_symbols = gather::get_repo_symbols(from).expect("Failed to get symbols for 'from' repository");
+	let to_symbols = gather::get_repo_symbols(to).expect("Failed to get symbols for 'to' repository");
+
+	for from_lang in from_symbols.keys() {
+		for to_lang in to_symbols.keys() {
+			let from_set = from_symbols.get(from_lang).unwrap();
+			let to_set = to_symbols.get(to_lang).unwrap();
+
+			let common: HashSet<_> = from_set.intersection(to_set).collect();
+			let common_count = common.len();
+			let from_pct = if !from_set.is_empty() {
+				common_count as f64 / from_set.len() as f64 * 100.0
+			} else {
+				0.0
+			};
+			let to_pct = if !to_set.is_empty() {
+				common_count as f64 / to_set.len() as f64 * 100.0
+			} else {
+				0.0
+			};
+
+			println!("Common symbols between {}'s {:?} and {}'s {:?}: {} (from {} or {:.2}% to {} or {:.2}%)", 
+				from,
+				from_lang,
+				to,
+				to_lang,
+				common_count,
+				from_set.len(),
+				from_pct,
+				to_set.len(),
+				to_pct
+			);
+		}
+	}
 }
 
 fn clone_repo(name: &str, folder: &str) {

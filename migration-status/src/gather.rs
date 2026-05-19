@@ -183,13 +183,11 @@ pub fn analyze_commit(
     index: usize,
     dir: &String,
 ) -> AnalyzeResult {
-    // let path = Path::new(dir);
-    // let paths = [dir.as_str()];
-    // let excluded: [&str; 0] = [];
-    // let config = Config::default();
+    let paths = [dir.as_str()];
+    let excluded: [&str; 0] = [];
+    let config = Config::default();
 
-    // let language_map = code::find_symbols(&result_dir, index, path).unwrap_or_default();
-    let total = code::extensive_find_symbols(Path::new(dir), 1_000_000_000, &|i: usize, symbols_result: HashMap<SupportedLanguage, HashSet<Box<SymbolData>>>| -> Result<(), SymbolsError> {
+    code::extensive_find_symbols(Path::new(dir), 1_000_000_000, &|i: usize, symbols_result: HashMap<SupportedLanguage, HashSet<Box<SymbolData>>>| -> Result<(), SymbolsError> {
         let symbols_file = format!("{}/{}_symbols.csv.gz", result_dir, index);
         let gz_file = fs::File::create(&symbols_file)
 			.map_err(|_| SymbolsError::ResultsWriteError)?;
@@ -222,17 +220,17 @@ pub fn analyze_commit(
         }
         encoder.finish().map_err(|_| SymbolsError::ResultsWriteError)?;
         Ok(())
-    });
+    }).unwrap_or_default();
 
-    // let mut languages = Languages::new();
-    // languages.get_statistics(&paths, &excluded, &config);
-    // let mut lang_stats = HashMap::new();
-    // let total_loc = languages.total().code as f64;
-    // for (lang, stats) in languages.iter() {
-    //     let loc = stats.code;
-    //     let loc_pct = loc as f64 / total_loc.max(1.0);
-    //     lang_stats.insert(*lang, (loc_pct, loc, stats.blanks, stats.comments));
-    // }
+    let mut languages = Languages::new();
+    languages.get_statistics(&paths, &excluded, &config);
+    let mut lang_stats = HashMap::new();
+    let total_loc = languages.total().code as f64;
+    for (lang, stats) in languages.iter() {
+        let loc = stats.code;
+        let loc_pct = loc as f64 / total_loc.max(1.0);
+        lang_stats.insert(*lang, (loc_pct, loc, stats.blanks, stats.comments));
+    }
 
     AnalyzeResult {
         lang_stats: HashMap::new(),
@@ -259,19 +257,6 @@ pub fn gather_repository_statistics(
 ) -> Result<RepositoryStats, GatherError> {
     let repo_name = format!("{}/{}", owner, repo);
 
-    // let symbols_arc: Arc<Mutex<Vec<HashSet<code::SupportedLanguage>>>> = Arc::new(Mutex::new(Vec::new()));
-    // let lang_stats_arc: Arc<Mutex<Vec<HashMap<LanguageType, (f64, usize, usize, usize)>>>> = Arc::new(Mutex::new(Vec::new()));
-
-    // let res_dir = result_dir.to_string();
-    // let symbols_clone = Arc::clone(&symbols_arc);
-    // let lang_stats_clone = Arc::clone(&lang_stats_arc);
-
-    // let func: Arc<dyn Fn(usize, &String) -> bool + Send + Sync + 'static> = Arc::new(move |i: usize, dir: &String| {
-    //     let analyze_result = analyze_commit(&res_dir, i, dir);
-    //     symbols_clone.lock().unwrap().push(analyze_result.symbols);
-    //     lang_stats_clone.lock().unwrap().push(analyze_result.lang_stats);
-    //     true
-    // });
     let mut symbols = Vec::new();
     let mut lang_stats = Vec::new();
 
@@ -292,9 +277,6 @@ pub fn gather_repository_statistics(
         lang_stats.push(analyze_result.lang_stats);
         true
     })?;
-
-    // let symbols = symbols_arc.lock().unwrap().clone();
-    // let lang_stats = lang_stats_arc.lock().unwrap().clone();
 
     Ok(RepositoryStats {
         length: lang_stats.len(),

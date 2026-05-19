@@ -1,0 +1,286 @@
+﻿Project;n;Original project;Original language(s);Domain;Label correct;Match correct;Email?;SonarQube;RCA support;Same as original owner;Owner type;Archived;Original archived;Stars;Original stars;Forks;Original forks;Project size;Original project size;Rust percentage
+trifectatechfoundation/zlib-rs;;madler/zlib;C;Non-web lib;y;n;y;y,y;y;FALSE;Organization;FALSE;FALSE;617;6790;41;2732;1369020;2111882;89,0
+cjdelisle/cjdns;;Same;C;System;y;;y;y;y;TRUE;User;FALSE;;5377;;600;;3135547;;12,4
+appsinacup/godot-rapier-physics;;Same;C,C++;Non-web lib;y;;y;y;y;TRUE;Organization;FALSE;;835;;55;;1323477;;70,8
+kubetail-org/kubetail;;Same;Go;App;y;;y;y;y;TRUE;Organization;FALSE;;1640;;121;;1326636;;13,1
+KiwiTalk/KiwiTalk;;Same;TypeScript;App;y;;y;y;y;TRUE;Organization;FALSE;;738;;90;;414612;;49,9
+memorysafety/rav1d;;videolan/dav1d;C;Non-web lib;y;y;y;y,y;y;FALSE;Organization;FALSE;FALSE;619;677;68;90;12750965;11530193;17,1
+jneem/nnnoiseless;;xiph/rnnoise;C;Non-web lib;y;n;y;y,y;y;FALSE;User;FALSE;FALSE;339;5486;18;1047;101691;388856;90,3
+m-labs/artiq;;Same;C;System;y;;y;y;y;TRUE;Organization;TRUE;;513;;225;;3992940;;21,0
+cooklang/cookcli;;Same;Swift;App;y;;y;y;y;TRUE;Organization;FALSE;;1225;;87;;871446;;56,3
+neondatabase/appdotbuild-agent;;Same;Python;Tool;y;;y;y;y;TRUE;Organization;FALSE;;751;;113;;2575667;;22,8
+tectonic-typesetting/tectonic;;Same;C,C++;System;y;;y;y;y;TRUE;Organization;FALSE;;4672;;194;;5930744;;27,2
+spieglt/FlyingCarpet;;Same;Go;App;y;;y;m;y;TRUE;User;FALSE;;5018;;234;;295634;;50,9
+stacked-git/stgit;;Same;Python;App;y;;y;y;y;TRUE;Organization;FALSE;;648;;71;;1643860;;58,9
+noahbald/oxvg;;svg/svgo;JavaScript;Web lib;n;n;y;y,y;y;FALSE;User;FALSE;FALSE;523;22430;10;1444;1613750;495928;97,5
+max-baz/wluma;;Same;C;Non-web lib;y;;y;y;y;TRUE;User;FALSE;;907;;41;;143357;;98,0
+rustfs/rustfs;;minio/minio;Go;System;y;y;y;y,i;y;FALSE;Organization;FALSE;TRUE;24341;60637;1045;7357;13999575;8877933;98,3
+ariebovenberg/whenever;;Same;Python;Non-web lib;y;;y;y;y;TRUE;User;FALSE;;2320;;33;;2281508;;41,2
+jely2002/youtube-dl-gui;;Same;JavaScript;App;y;;y;y;y;TRUE;User;FALSE;;7951;;585;;696322;;37,4
+typedb/typedb;;Same;Java;System;y;;y;i;y;TRUE;Organization;FALSE;;4275;;364;;6098498;;98,0
+intentee/paddler;;Same;Go;System;y;;y;y;y;TRUE;Organization;FALSE;;1512;;83;;928338;;69,5
+SeaDve/Kooha;;Same;Python;App;y;;y;y;y;TRUE;User;FALSE;;3317;;93;;218788;;96,2
+brndnmtthws/dryoc;;jedisct1/libsodium;C;Non-web lib;y;y;y;y,y;y;FALSE;User;FALSE;FALSE;332;13581;19;1863;582529;5824187;100,0
+kkoomen/vim-doge;;Same;TypeScript;App;y;;y;y;y;TRUE;User;FALSE;;1061;;53;;165475;;70,7
+fosskers/aura;;Same;Haskell;App;y;;y;y;y;TRUE;User;FALSE;;1886;;121;;996894;;29,7
+yuezk/GlobalProtect-openconnect;;Same;C++;App;y;;y;y;y;TRUE;User;FALSE;;2053;;234;;266270;;85,5
+oreboot/oreboot;;coreboot/coreboot;C;System;y;;y;i;y;FALSE;Organization;FALSE;FALSE;1767;2648;114;608;1523680;127169482;96,0
+nautechsystems/nautilus_trader;;Same;Cython;App;y;;y;y;y;TRUE;Organization;FALSE;;21723;;2613;;52130425;;64,2
+gschup/ggrs;;pond3r/ggpo;C++;System;y;y;y;y,y;y;FALSE;User;FALSE;FALSE;640;3486;32;396;248936;249780;100,0
+eraserhd/parinfer-rust;;parinfer/parinfer.js;JavaScript;Tool;y;y;y;y,y;y;FALSE;User;FALSE;FALSE;615;1798;50;42;185026;87215;73,6
+ixy-languages/ixy.rs;;emmericp/ixy;C;System;y;n;y;y,y;y;FALSE;Organization;FALSE;FALSE;316;1290;37;139;442127;271228;99,9
+BitBoxSwiss/bitbox02-firmware;;Same;C;System;y;;y;i;y;TRUE;Organization;FALSE;;349;;127;;8025432;;26,7
+libjxl/jxl-rs;;libjxl/libjxl;C++;Non-web lib;y;y;y;y,i;y;TRUE;Organization;FALSE;FALSE;528;3436;36;352;2308240;5885287;98,3
+apache/arrow-rs;;apache/arrow;C++;System;n;n;y;i,y;y;TRUE;Organization;FALSE;FALSE;3425;16643;1140;4071;15798256;45165986;99,6
+numaproj/numaflow;;Same;Go;System;y;;y;y;y;TRUE;Organization;FALSE;;2446;;151;;6733234;;57,6
+amir20/dtop;;Same;Go;App;y;;y;y;y;TRUE;User;FALSE;;1008;;26;;289386;;95,7
+NixOS/nixos-search;;Same;Python;App;y;;y;y;y;TRUE;Organization;FALSE;;538;;150;;302594;;31,9
+OISF/suricata;;Same;C;System;y;;y;y;y;TRUE;Organization;FALSE;;6116;;1678;;19570385;;24,0
+pubky/pkarr;;Same;JavaScript;Non-web lib;y;;y;y;y;TRUE;Organization;FALSE;;392;;39;;360824;;79,6
+Pometry/Raphtory;;Same;Java,Scala;System;y;;y;;;TRUE;Organization;FALSE;;600;;66;;7558965;;74,7
+abenz1267/walker;;Same;Go;App;y;;y;;;TRUE;User;FALSE;;2695;;96;;225667;;91,1
+al8n/stretto;;dgraph-io/ristretto;Go;Non-web lib;y;n;y;;;FALSE;User;FALSE;FALSE;430;6851;28;435;161854;247210;97,5
+alvr-org/ALVR;;polygraphene/ALVR;JavaScript,C,C++;App;y;;y;;;FALSE;Organization;FALSE;TRUE;7504;1840;640;242;1781787;3572398;67,5
+amethyst/bracket-lib;;thebracket/rltk;C++;Non-web lib;y;y;y;;;FALSE;Organization;FALSE;FALSE;1665;340;126;21;1392917;215186;99,3
+ankitects/anki;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;27305;;2892;;5495844;;46,2
+arrowpc/palettum;;Same;C++;App;y;;;;;TRUE;User;FALSE;;471;;4;;585545;;47,8
+arxanas/git-branchless;;Same;Python;Tool;y;;y;;;TRUE;User;FALSE;;4041;;110;;2167258;;99,8
+asciinema/asciinema;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;17141;;1012;;281982;;92,0
+aspizu/goboscript;;Same;Python;Tool;y;;y;;;TRUE;User;FALSE;;477;;49;;431911;;88,1
+atomashpolskiy/rustface;;seetaface/SeetaFaceEngine;C++;Non-web lib;y;y;y;;;FALSE;User;FALSE;FALSE;434;4643;40;1762;98783;298313;100,0
+autozimu/LanguageClient-neovim;;Same;Python;Tool;y;;y;;;TRUE;User;FALSE;;3557;;269;;420460;;71,3
+BaguaSys/bagua;;Same;Python;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;883;;81;;1187649;;26,8
+bakape/shamichan;;Same;JavaScript,TypeScript,Go;App;y;;y;;;TRUE;User;TRUE;;446;;78;;526178;;67,2
+bazelbuild/sandboxfs;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;400;;42;;436244;;50,8
+bensadeh/tailspin;;Same;Go;App;y;;;;;TRUE;User;FALSE;;7763;;134;;225689;;100,0
+biliup/biliup-app;;Same;Python;App;y;;;;;TRUE;Organization;TRUE;;1434;;67;;275468;;60,1
+biomejs/biome;;rome/tools;JavaScript,TypeScript;Tool;y;;y;;;FALSE;Organization;FALSE;TRUE;24274;23472;936;648;25047028;9021068;85,8
+BitVM/BitVM;;Same;JavaScript;App;y;;;;;TRUE;Organization;FALSE;;504;;184;;2161930;;99,8
+block/goose;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;39305;;3854;;8238442;;58,4
+Boddlnagg/midir;;thestk/rtmidi;C++;Non-web lib;y;y;y;;;FALSE;User;FALSE;FALSE;795;1167;100;299;156817;324263;100,0
+build-trust/ockam;;Same;JavaScript;System;y;;y;;;TRUE;Organization;FALSE;;4611;;558;;6878430;;80,8
+bytecodealliance/wasmtime;;Same;C;Tool;y;;y;;;TRUE;Organization;FALSE;;17866;;1664;;36058816;;70,4
+c3rb3ru5d3d53c/binlex;;Same;C;App;y;;;;;TRUE;User;FALSE;;525;;59;;2605654;;82,6
+candy-lang/candy;;Same;Dart;Tool;y;;y;;;TRUE;Organization;FALSE;;342;;4;;1816396;;97,2
+cangzhang/champ-r;;Same;JavaScript,TypeScript;App;y;;y;;;TRUE;User;FALSE;;1721;;133;;129950;;50,8
+Canner/wren-engine;;Same;Python;System;y;;y;;;TRUE;Organization;FALSE;;635;;183;;4798992;;17,9
+canselcik/libremarkable;;Same;C,C++;Non-web lib;y;;y;;;TRUE;User;FALSE;;681;;62;;670029;;23,7
+ChainSafe/forest;;filecoin-project/lotus;Go;System;y;y;y;;;FALSE;Organization;FALSE;FALSE;693;2999;187;1368;5072838;8451289;96,9
+chenxiaolong/avbroot;;Same;Python;App;y;;;;;TRUE;User;FALSE;;862;;67;;1021986;;100,0
+chewing/libchewing;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;414;;104;;1043253;;62,5
+chipsalliance/t1;;Same;C,C++;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;311;;44;;3603962;;8,1
+chyh1990/yaml-rust;;yaml/libyaml;C;Non-web lib;y;n;y;;;FALSE;User;FALSE;FALSE;644;1121;160;354;278216;542402;50,2
+Cisco-Talos/clamav;;Same;C,C++;App;y;;y;;;TRUE;Organization;FALSE;;6463;;844;;10913300;;3,6
+cloudwego/sonic-rs;;simdjson/simdjson;C++;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;859;23611;59;1232;849210;14134814;99,7
+ClueLang/Clue;;Same;C++;Tool;y;;y;;;TRUE;Organization;FALSE;;371;;11;;203372;;99,3
+codemod/codemod;;Same;JavaScript,TypeScript,Python;App;y;;y;;;TRUE;Organization;FALSE;;972;;64;;2802685;;94,8
+CommE2E/comm;;Same;C,C++;App;y;;y;;;TRUE;Organization;FALSE;;324;;28;;12450959;;10,5
+copy/v86;;Same;JavaScript;System;y;;y;;;TRUE;User;FALSE;;22427;;1744;;3914573;;30,9
+coreos/rpm-ostree;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;1001;;216;;3197657;;29,4
+Crauzer/Obsidian;;Same;C#;App;y;;y;;;TRUE;User;FALSE;;654;;108;;260670;;35,2
+crunchy-labs/crunchy-cli;;Same;Go;App;y;;;;;TRUE;Organization;TRUE;;630;;75;;267123;;99,2
+cube-js/cube;;Same;JavaScript;System;y;;y;;;TRUE;Organization;FALSE;;19771;;1991;;19763174;;52,5
+Cuprate/cuprate;;monero-project/monero;C++;System;n;n;y;;;FALSE;Organization;FALSE;FALSE;360;10450;56;3408;3458966;12228485;100,0
+dask-contrib/dask-sql;;Same;Python;System;y;;y;;;TRUE;Organization;FALSE;;411;;71;;1141681;;36,4
+das-labor/panopticon;;Same;C++;App;y;;y;;;TRUE;Organization;FALSE;;1442;;80;;1683121;;88,0
+deepseek-ai/3FS;;Same;C++;System;y;;y;;;TRUE;Organization;FALSE;;9794;;1025;;6005945;;4,4
+delta-io/delta-rs;;delta-io/delta;Scala,Java;System;n;n;y;;;TRUE;Organization;FALSE;FALSE;3184;8708;603;2066;4305335;21983856;84,5
+denoland/deno;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;106490;;5996;;23722789;;59,9
+dermesser/leveldb-rs;;google/leveldb;C++;System;y;y;y;;;FALSE;User;FALSE;FALSE;578;38963;74;8178;457576;918767;99,9
+dfinity/motoko;;Same;C;Tool;y;;y;;;TRUE;Organization;FALSE;;581;;122;;5404412;;15,7
+dominikwilkowski/cfonts;;Same;JavaScript;Non-web lib;y;;y;;;TRUE;User;FALSE;;1847;;65;;1115925;;56,3
+dprint/dprint;;Same;JavaScript,TypeScript;Tool;y;;y;;;TRUE;Organization;FALSE;;3872;;103;;1405870;;92,3
+DragonOS-Community/DragonOS;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;1148;;184;;9943621;;88,0
+dyc3/steamguard-cli;;Same;C#;App;y;;y;;;TRUE;User;FALSE;;937;;58;;307394;;80,3
+dylanede/cassowary-rs;;nucleic/kiwi;C++;Non-web lib;y;n;y;;;FALSE;User;FALSE;FALSE;351;763;26;107;74219;358858;100,0
+elringus/sprite-dicing;;Same;C#;Non-web lib;y;;y;;;TRUE;User;FALSE;;1473;;154;;197111;;47,3
+eunomia-bpf/eunomia-bpf;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;863;;74;;418536;;90,3
+euzu/tuliprox;;Same;TypeScript;App;y;;;;;TRUE;User;FALSE;;419;;39;;7021557;;92,8
+Eventual-Inc/Daft;;Same;C++,JavaScript;System;y;;y;;;TRUE;Organization;FALSE;;5403;;439;;16767039;;45,1
+fables-tales/rubyfmt;;Same;Ruby;Tool;y;;y;;;TRUE;User;FALSE;;1099;;54;;676547;;55,0
+facebook/buck2;;facebook/buck;Java;Tool;n;n;y;;;TRUE;Organization;FALSE;TRUE;4306;8561;335;1134;33840047;37205651;54,5
+facebook/hhvm;;Same;Ocaml;Tool;y;;y;;;TRUE;Organization;FALSE;;18618;;3076;;105006751;;9,1
+facebook/relay;;Same;JavaScript;Tool;y;;y;;;TRUE;Organization;FALSE;;18934;;1885;;10895925;;54,4
+ffplayout/ffplayout;;Same;Python;App;y;;y;;;TRUE;Organization;TRUE;;558;;136;;899557;;59,9
+fish-shell/fish-shell;;Same;C,C++;App;y;;y;;;TRUE;Organization;FALSE;;33100;;2271;;4993429;;70,3
+fluencelabs/nox;;Same;Scala;System;y;;y;;;TRUE;Organization;TRUE;;985;;180;;1804234;;99,5
+gabriel-milan/btrader;;bmino/binance-triangle-arbitrage;C,Python;App;y;;y;;;FALSE;User;TRUE;FALSE;328;1160;68;359;40468;55822;98,2
+Gadersd/stable-diffusion-burn;;CompVis/stable-diffusion;Python;App;y;n;;;;FALSE;User;FALSE;FALSE;346;72841;17;10625;148437;4695629;68,8
+geldata/gel;;Same;Python;System;y;;y;;;TRUE;Organization;FALSE;;14091;;449;;18159618;;3,6
+Genymobile/gnirehtet;;Same;Java;System;y;;y;;;TRUE;Organization;FALSE;;7531;;697;;436251;;49,7
+gfx-rs/rspirv;;KhronosGroup/SPIRV-Tools;C++;Tool;y;n;y;;;FALSE;Organization;FALSE;FALSE;493;1295;72;664;3060446;24597295;100,0
+glandium/git-cinnabar;;Same;Python,C;Tool;y;;y;;;TRUE;User;FALSE;;318;;64;;1003275;;65,1
+glotlabs/gdrive;;prasmussen/gdrive;Go;App;y;y;y;;;FALSE;Organization;FALSE;TRUE;2035;8975;138;1165;174275;149023;100,0
+glzr-io/glazewm;;Same;C#;App;y;;;;;TRUE;Organization;FALSE;;11802;;360;;731334;;99,4
+GNOME/librsvg;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;385;;54;;2154133;;87,3
+google/flatbuffers;;Same;C++;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;25755;;3534;;10952300;;13,5
+googlefonts/fontations;;freetype/freetype;C++;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;744;798;56;399;8471831;8192650;99,1
+grafana/augurs;;facebook/prophet;Python;Non-web lib;y;y;y;;;FALSE;Organization;FALSE;FALSE;565;20112;22;4647;1708242;415084;74,0
+graniet/operative-framework;;Same;Go;App;y;;y;;;TRUE;User;FALSE;;744;;166;;141262;;100,0
+Graviton-Code-Editor/Graviton-App;;Same;JavaScript,TypeScript;App;y;;y;;;TRUE;Organization;TRUE;;1209;;122;;361974;;43,8
+greenbone/openvas-scanner;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;4525;;766;;4492962;;51,6
+gsquire/topngx;;lebinh/ngxtop;Python;App;y;y;y;;;FALSE;User;FALSE;FALSE;697;6522;11;474;20834;53283;96,5
+guillaume-be/rust-bert;;huggingface/transformers;Python;Non-web lib;y;n;y;;;FALSE;User;FALSE;FALSE;3059;159021;245;32786;2933008;64712591;99,7
+harfbuzz/rustybuzz;;harfbuzz/harfbuzz;C++;Non-web lib;y;y;y;;;TRUE;Organization;FALSE;FALSE;657;5523;42;725;2280991;8305360;95,9
+hasura/graphql-engine;;Same;Haskell,TypeScript;System;y;;y;;;TRUE;Organization;FALSE;;31932;;2861;;36650149;;11,8
+Headline/discord-compiler-bot;;Same;JavaScript;System;y;;y;;;TRUE;User;FALSE;;442;;39;;187112;;99,8
+heim-rs/heim;;giampaolo/psutil;Python,C;Non-web lib;y;y;y;;;FALSE;Organization;FALSE;FALSE;923;11134;96;1473;478284;1648648;100,0
+hermit-os/kernel;;Same;C;System;y;y;y;;;TRUE;Organization;FALSE;;1416;;113;;1143993;;97,6
+HerringtonDarkholme/vue-compiler;;vuejs/vue;TypeScript;Tool;y;n;;;;FALSE;User;FALSE;FALSE;1110;209900;42;33839;544788;1917500;92,7
+HouraiTeahouse/backroll-rs;;pond3r/ggpo;C++;System;y;y;y;;;FALSE;Organization;FALSE;FALSE;364;3486;18;396;167504;249780;100,0
+huff-language/huff-rs;;huff-language/huffc;TypeScript;Tool;y;y;y;;;TRUE;Organization;TRUE;TRUE;594;260;81;33;763167;59032;98,6
+hyperledger-archives/sawtooth-core;;Same;Python;System;y;;y;;;TRUE;Organization;TRUE;;1419;;750;;2220988;;24,6
+ihrwein/backoff;;cenkalti/backoff;Go;Non-web lib;y;y;y;;;FALSE;User;FALSE;FALSE;342;3975;52;210;39814;25626;100,0
+ImageOptim/libimagequant;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;900;;139;;238003;;82,8
+imazen/imageflow;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;4384;;143;;2399861;;77,2
+imLinguin/comet;;Same;Python;Non-web lib;y;;y;;;TRUE;User;FALSE;;353;;19;;200822;;96,4
+influxdata/flux;;Same;Go;Tool;y;;y;;;TRUE;Organization;FALSE;;792;;156;;15797705;;25,9
+influxdata/influxdb;;Same;JavaScript,TypeScript,Go;System;y;;y;;;TRUE;Organization;FALSE;;31392;;3703;;12129054;;95,1
+inko-lang/inko;;Same;Ruby;Tool;y;;y;;;TRUE;Organization;FALSE;;1265;;54;;2841738;;98,8
+Instagram/LibCST;;Same;Python;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;1876;;225;;4136053;;13,9
+JamieMason/syncpack;;Same;TypeScript;Tool;y;;y;;;TRUE;User;FALSE;;1967;;70;;1066571;;65,8
+jasonish/evebox;;Same;Go;App;y;;y;;;TRUE;User;FALSE;;486;;75;;863856;;61,9
+jeremylvln/Shulker;;Same;Kotlin,Go;System;y;;y;;;TRUE;User;FALSE;;376;;26;;621333;;68,7
+K4rakara/freshfetch;;dylanaraps/neofetch;Shell;App;y;n;y;;;FALSE;User;FALSE;TRUE;502;23615;20;1788;123095;389803;94,3
+kamu-data/kamu-cli;;Same;Scala;App;y;;y;;;TRUE;Organization;FALSE;;343;;17;;14681948;;98,2
+kane50613/takumi;;vercel/satori;TypeScript;Non-web lib;n;n;y;;;FALSE;User;FALSE;FALSE;1583;13237;26;340;1780066;688753;83,0
+kaspanet/rusty-kaspa;;kaspanet/kaspad;Go;System;y;y;y;;;TRUE;Organization;FALSE;FALSE;802;529;275;241;7427859;3798489;94,3
+kata-containers/kata-containers;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;7718;;1284;;12427666;;58,2
+kcl-lang/kcl;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;2340;;169;;4226838;;90,4
+kitao/pyxel;;Same;Python;Non-web lib;y;;y;;;TRUE;User;FALSE;;17393;;922;;1276157;;44,4
+kixelated/moq;;Same;Go;Web lib;y;;y;;;TRUE;Organization;FALSE;;1096;;160;;2173692;;58,9
+knsd/daemonize;;thesharp/daemonize;Python;Non-web lib;y;y;y;;;FALSE;User;FALSE;FALSE;580;452;63;65;35895;18197;100,0
+kubernetes-retired/blixt;;Same;Go,C;System;y;;y;;;TRUE;Organization;TRUE;;462;;61;;179970;;100,0
+Kudaes/DInvoke_rs;;TheWover/DInvoke;C#;Non-web lib;y;y;y;;;FALSE;User;FALSE;FALSE;360;773;44;114;210374;210713;98,7
+kuma-ui/kuma-ui;;Same;JavaScript,TypeScript;Web lib;n;;y;;;TRUE;Organization;FALSE;;1852;;68;;411339;;4,8
+lance-format/lance;;Same;C++;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;6283;;621;;21041262;;70,2
+lasa01/Plumber;;Same;Python;App;y;;y;;;TRUE;User;FALSE;;477;;35;;395610;;60,2
+latex-lsp/texlab;;Same;Kotlin;System;y;;y;;;TRUE;Organization;FALSE;;1931;;68;;1104991;;99,8
+lichess-org/fishnet;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;888;;110;;163336;;99,2
+linebender/tiny-skia;;google/skia;C++;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;1527;10604;88;1701;970090;58327760;96,5
+linkerd/linkerd2;;linkerd/linkerd;Scala;System;y;n;y;;;TRUE;Organization;FALSE;FALSE;11366;5335;1344;498;5091070;2998774;29,2
+lynx-family/lynx-stack;;Same;TypeScript;Web lib;y;;;;;TRUE;Organization;FALSE;;704;;123;;7245588;;10,4
+madeofpendletonwool/PinePods;;Same;Python;App;y;;y;;;TRUE;User;FALSE;;832;;51;;6847621;;62,9
+maestro-os/maestro;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;3222;;107;;1548899;;98,4
+messense/jieba-rs;;fxsjy/jieba;Python;Non-web lib;y;n;;;;FALSE;User;FALSE;FALSE;909;34841;60;6706;105749;14120514;100,0
+microsoft/demikernel;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;1216;;144;;1497456;;90,3
+monadgroup/axiom;;Same;C++;App;y;;y;;;TRUE;Organization;TRUE;;699;;28;;1651809;;42,0
+monosans/proxy-scraper-checker;;Same;Python;App;y;;y;;;TRUE;User;FALSE;;1247;;270;;84673;;94,9
+Mooncake-Labs/pg_mooncake;;Same;C++;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;1948;;63;;32739;;91,2
+Morganamilo/paru;;Jguer/yay;Go;App;y;y;y;;;FALSE;User;FALSE;FALSE;8576;13332;309;399;397015;807134;88,2
+mullvad/mullvadvpn-app;;Same;C++;App;y;;y;;;TRUE;Organization;FALSE;;6940;;461;;13597457;;33,6
+mxsm/rocketmq-rust;;apache/rocketmq;Java;System;y;y;y;;;FALSE;User;FALSE;FALSE;1490;22400;244;11988;15065288;15981561;92,8
+mycrl/turn-rs;;coturn/coturn;C;System;n;n;y;;;FALSE;User;FALSE;FALSE;473;13838;49;2223;333443;1898749;97,4
+naaive/orange;;Same;Java;App;y;;;;;TRUE;User;FALSE;;1810;;139;;97028;;63,2
+newrelic/rusty-hog;;trufflesecurity/trufflehog;Python;App;y;n;y;;;FALSE;Organization;FALSE;FALSE;545;25630;64;2312;229387;10897349;76,8
+newsboat/newsboat;;Same;C++;App;y;;y;;;TRUE;Organization;FALSE;;3759;;236;;2311888;;21,3
+NH-RED-TEAM/RustHound;;SpecterOps/SharpHound;C#;App;y;n;y;;;FALSE;Organization;FALSE;FALSE;1138;1241;105;253;541360;189446;98,8
+nkaz001/hftbacktest;;Same;Python;App;y;;y;;;TRUE;User;FALSE;;3916;;758;;1182101;;75,9
+nmstate/nmstate;;Same;Python;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;375;;115;;3057209;;66,1
+NOALBS/nginx-obs-automatic-low-bitrate-switching;;Same;JavaScript;App;y;;y;;;TRUE;Organization;FALSE;;476;;107;;281971;;95,5
+nrwl/nx;;Same;TypeScript,JavaScript;Tool;y;;y;;;TRUE;Organization;FALSE;;28493;;2708;;31607746;;4,3
+nwtgck/piping-server-rust;;nwtgck/piping-server;TypeScript;System;y;y;y;;;TRUE;User;FALSE;FALSE;308;3145;24;166;78476;85699;98,2
+obhq/obliteration;;InoriRus/Kyty;C++;System;y;;;;;FALSE;Organization;FALSE;FALSE;787;2580;25;159;1437192;6500944;97,8
+octaltree/playwright-rust;;microsoft/playwright;TypeScript;Tool;y;n;y;;;FALSE;User;FALSE;FALSE;440;85807;56;5429;955696;11637957;99,8
+openai/codex;;Same;TypeScript;App;y;;y;;;TRUE;Organization;FALSE;;73823;;10389;;22292022;;94,8
+openscopeproject/TrguiNG;;transmission-remote-gui/transgui;Pascal;App;y;n;;;;FALSE;Organization;FALSE;FALSE;729;3416;91;295;629273;2591143;11,7
+open-telemetry/opentelemetry-network;;Same;Go,C++;System;y;;y;;;TRUE;Organization;FALSE;;404;;63;;3996981;;37,8
+org-rs/org-rs;;emacsmirror/org;Emacs Lisp;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;801;5;23;5;128906;7986451;100,0
+osrg/rustybgp;;osrg/gobgp;Go;Non-web lib;y;y;y;;;TRUE;Organization;FALSE;FALSE;575;4021;57;779;764039;3487482;95,4
+pantsbuild/pants;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;3749;;691;;13871750;;19,8
+parcel-bundler/parcel;;Same;JavaScript;Tool;y;;y;;;TRUE;Organization;FALSE;;44049;;2276;;5295448;;17,8
+paritytech/substrate-telemetry;;Same;TypeScript;App;y;;y;;;TRUE;Organization;FALSE;;332;;230;;659090;;62,6
+pcwalton/offset-allocator;;sebbbi/OffsetAllocator;C++;System;y;y;y;;;FALSE;User;FALSE;FALSE;429;1024;11;53;31854;29939;100,0
+perspective-dev/perspective;;Same;JavaScript,Python;App;y;;y;;;TRUE;Organization;FALSE;;10425;;1279;;5584965;;33,6
+philocalyst/infat;;Same;Swift;App;y;;y;;;TRUE;User;FALSE;;407;;11;;131015;;62,3
+pipeless-ai/pipeless;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;849;;53;;255942;;85,8
+pleco-rs/Pleco;;official-stockfish/Stockfish;C++;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;423;15216;43;2848;711044;908851;100,0
+PluralKit/PluralKit;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;319;;146;;1799241;;11,3
+poljar/weechat-matrix-rs;;poljar/weechat-matrix;Python;Non-web lib;y;y;y;;;TRUE;User;FALSE;FALSE;398;984;33;125;228686;359673;99,6
+Polprzewodnikowy/SummerCart64;;Same;Python;System;y;;y;;;TRUE;User;FALSE;;1025;;64;;879153;;26,0
+PolyMeilex/Neothesia;;johndpope/pianogame;C++;App;y;;y;;;FALSE;User;FALSE;FALSE;1428;101;92;29;430973;281748;93,3
+postcss-rs/postcss-rs;;postcss/postcss;TypeScript,JavaScript;Tool;y;y;y;;;FALSE;Organization;FALSE;FALSE;564;28973;17;1590;96827;312905;92,9
+postgresml/postgresml;;Same;Python;System;y;;y;;;TRUE;Organization;FALSE;;6739;;361;;2137638;;62,5
+PostHog/posthog;;Same;Python,TypeScript;Tool;y;;y;;;TRUE;Organization;FALSE;;32458;;2486;;118082625;;7,1
+prefix-dev/rip;;pypa/pip;Python;Tool;n;n;y;;;FALSE;Organization;FALSE;FALSE;670;10153;23;3254;503261;5817202;97,4
+pvolok/mprocs;;Same;Ocaml,C;App;y;;y;;;TRUE;User;FALSE;;2502;;100;;429327;;98,3
+pyca/cryptography;;Same;Python;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;7539;;1732;;3665355;;31,3
+pydantic/pydantic-core;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;1767;;329;;2988815;;38,9
+python-pendulum/pendulum;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;6650;;425;;811972;;7,3
+qiin2333/sunshine-control-panel;;Same;JavaScript;App;y;;;;;TRUE;User;FALSE;;379;;10;;1058903;;28,4
+Qiskit/qiskit;;Same;Cython;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;7223;;2831;;18379497;;27,8
+qltysh/qlty;;Same;Ruby;Tool;y;;y;;;TRUE;Organization;FALSE;;3006;;267;;2853779;;92,1
+railwayapp/cli;;Same;Go;App;y;;y;;;TRUE;Organization;FALSE;;514;;150;;1042354;;97,7
+Ramilito/kubectl.nvim;;Same;Lua;App;y;;y;;;TRUE;User;FALSE;;525;;18;;1144363;;49,7
+RazrFalcon/svgcleaner;;Same;C++;Non-web lib;y;;y;;;TRUE;User;TRUE;;1667;;100;;375704;;98,2
+RediSearch/RediSearch;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;6120;;578;;12414996;;25,5
+RedisGears/RedisGears;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;382;;66;;682739;;63,5
+refcell/subway-rs;;libevm/subway;JavaScript;App;y;y;y;;;FALSE;User;FALSE;FALSE;542;2217;92;527;87822;66066;79,4
+ReFirmLabs/binwalk;;Same;C++,Python;App;y;;y;;;TRUE;Organization;FALSE;;13809;;1778;;835952;;99,4
+richardscollin/tmux-rs;;tmux/tmux;C;App;y;y;y;;;FALSE;User;FALSE;FALSE;782;44183;28;2562;3114385;2753846;97,7
+risc0/risc0;;Same;C,C++;System;y;;y;;;TRUE;Organization;FALSE;;2118;;702;;74715495;;34,1
+rlane/oort3;;Same;JavaScript;App;y;;;;;TRUE;User;FALSE;;323;;26;;939186;;97,1
+rs-ipfs/rust-ipfs;;ipfs/js-ipfs;JavaScript;Web lib;y;y;;;;FALSE;Organization;TRUE;TRUE;1283;7415;174;1215;960011;2349443;99,0
+ruby/ruby;;Same;C;Tool;y;;y;;;TRUE;Organization;FALSE;;23489;;5578;;56629493;;7,0
+rust-av/Av1an;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;1888;;185;;515040;;99,7
+rust-lang/rust;;Same;C,Ocaml;Tool;y;;y;;;TRUE;Organization;FALSE;;111825;;14798;;150023529;;90,1
+rust-lang/rustc-perf;;Same;JavaScript;App;y;;y;;;TRUE;Organization;FALSE;;709;;173;;106545511;;98,8
+rust-mobile/android-activity;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;373;;71;;1662314;;86,9
+RustNSparks/sockudo;;soketi/soketi;TypeScript;System;y;y;y;;;FALSE;Organization;FALSE;FALSE;536;5574;35;352;2411131;495866;90,0
+sachaos/viddy;;Same;Go;App;y;;y;;;TRUE;User;FALSE;;5308;;96;;178959;;99,8
+safedv/RustPotato;;BeichenDream/GodPotato;C#;System;y;y;y;;;FALSE;User;FALSE;FALSE;359;2225;36;262;241862;116740;99,4
+samuela/rustybox;;mirror/busybox;C;App;y;y;y;;;FALSE;User;FALSE;FALSE;862;2066;39;717;17126849;8427956;98,8
+scottlamb/moonfire-nvr;;Same;C++;App;y;;y;;;TRUE;User;FALSE;;1677;;181;;1191365;;86,3
+scroll-tech/scroll;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;746;;631;;1471085;;6,7
+SeaDve/Mousai;;Same;Python;App;y;;y;;;TRUE;User;FALSE;;1191;;54;;480678;;97,7
+SentryShot/sentryshot;;Same;Go;App;y;;y;;;TRUE;Organization;FALSE;;342;;37;;1677359;;72,6
+seppo0010/rsedis;;redis/redis;C;System;y;n;y;;;FALSE;User;FALSE;FALSE;1816;73706;118;24566;945333;11950925;54,8
+sgayou/rbasefind;;mncoppola/ws30;Python;App;y;n;y;;;FALSE;User;FALSE;FALSE;375;71;38;12;10799;25166;100,0
+sgl-project/sglang;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;25551;;5228;;38028479;;8,0
+shadow/shadow;;Same;C;System;y;;y;;;TRUE;Organization;FALSE;;1683;;269;;5036489;;80,8
+ShadowBlip/OpenGamepadUI;;Same;GDScript,C;App;y;;y;;;TRUE;Organization;FALSE;;820;;34;;1929681;;28,9
+shadowsocks/shadowsocks-rust;;shadowsocks/shadowsocks;Python;System;y;n;y;;;TRUE;Organization;FALSE;FALSE;10481;33617;1405;18205;3283271;173709;98,6
+shaoruu/mine.js;;Same;TypeScript;App;y;;y;;;TRUE;User;FALSE;;330;;32;;597220;;56,5
+sidkshatriya/rd;;rr-debugger/rr;C++,C;Tool;n;n;y;;;FALSE;User;TRUE;FALSE;960;10453;14;650;2860728;4339884;89,4
+simd-lite/simd-json;;simdjson/simdjson;C++;Non-web lib;y;n;y;;;FALSE;Organization;FALSE;FALSE;1386;23611;100;1232;897770;14134814;99,7
+SoftbearStudios/mk48;;Same;Go;App;y;;y;;;TRUE;Organization;FALSE;;421;;88;;768481;;94,6
+spacebudz/lucid;;Same;TypeScript;Non-web lib;y;;;;;TRUE;Organization;FALSE;;361;;147;;569755;;69,3
+sqlfluff/sqlfluff;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;9632;;973;;7563018;;11,1
+stencila/stencila;;Same;TypeScript;App;y;;y;;;TRUE;Organization;FALSE;;875;;56;;29243989;;52,1
+surrealdb/surrealdb;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;31785;;1220;;13071317;;77,9
+swanandx/lemmeknow;;bee-san/pyWhat;Python;App;y;n;;;;FALSE;User;FALSE;FALSE;1096;7171;42;383;31243;78453;100,0
+t895/DNSNet;;Same;Kotlin;App;y;;y;;;TRUE;User;FALSE;;809;;33;;696383;;22,4
+TabbyML/tabby;;Same;JavaScript;App;y;;y;;;TRUE;Organization;FALSE;;33309;;1721;;1650291;;92,9
+tach-org/tach;;Same;Python;Tool;y;;y;;;TRUE;Organization;FALSE;;2687;;85;;728942;;59,1
+teamclouday/AndroidMic;;Same;C#;App;y;;y;;;TRUE;User;FALSE;;1095;;66;;335117;;63,6
+teamtype/teamtype;;Same;JavaScript,TypeScript;App;y;;y;;;TRUE;Organization;FALSE;;1770;;46;;357637;;78,6
+tellerops/teller;;Same;Go;System;y;;y;;;TRUE;Organization;FALSE;;3191;;197;;155884;;98,0
+thesayyn/protoc-gen-ts;;Same;TypeScript,JavaScript;Tool;y;;y;;;TRUE;User;FALSE;;404;;73;;292508;;49,5
+tikv/raft-rs;;etcd-io/raft;Go;Non-web lib;y;y;;;;FALSE;Organization;FALSE;FALSE;3314;1010;453;236;783121;762083;100,0
+timescale/pgvectorscale;;pgvector/pgvector;C;System;y;y;y;;;FALSE;Organization;FALSE;FALSE;2961;20664;132;1128;478842;432794;93,5
+TimeToogo/tunshell;;Same;TypeScript;System;y;;y;;;TRUE;User;FALSE;;808;;59;;625007;;87,6
+TimmyOVO/deepseek-ocr.rs;;deepseek-ai/DeepSeek-OCR;Python;App;n;n;;;;FALSE;User;FALSE;FALSE;2159;22801;168;2098;1363196;113538;89,8
+topjohnwu/Magisk;;Same;C++;System;y;;y;;;TRUE;User;FALSE;;59744;;17164;;2016172;;27,8
+trashhalo/obsidian-extract-url;;Same;JavaScript;App;y;;y;;;TRUE;User;FALSE;;305;;14;;37598;;96,2
+tree-sitter/tree-sitter;;Same;C;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;24570;;2552;;2962217;;64,4
+trustwallet/wallet-core;;Same;C++;Non-web lib;y;;y;;;TRUE;Organization;FALSE;;3493;;1939;;12677243;;32,5
+tursodatabase/turso;;tursodatabase/libsql;C;System;n;n;y;;;TRUE;Organization;FALSE;FALSE;18152;16581;824;478;19393274;56237674;84,4
+tvlfyi/tvix;;NixOS/nix;C++;App;n;n;y;;;FALSE;Organization;FALSE;FALSE;1012;16532;16;1881;1950814;6599941;73,2
+twitter/pelikan;;Same;C;System;y;;;;;TRUE;Organization;FALSE;;1962;;168;;2946817;;34,3
+uutils/coreutils;;coreutils/coreutils;C;App;y;;y;;;FALSE;Organization;FALSE;FALSE;23036;5087;1812;1040;8025704;5107305;92,5
+vercel/turborepo;;Same;Go;Tool;y;;y;;;TRUE;Organization;FALSE;;30144;;2309;;9374142;;68,7
+versatica/mediasoup;;Same;TypeScript;System;y;;y;;;TRUE;Organization;FALSE;;7203;;1227;;5901008;;22,6
+VOICEVOX/voicevox_core;;Same;C++;System;y;;y;;;TRUE;Organization;FALSE;;1091;;147;;1395507;;80,0
+wahn/rs_pbrt;;mmp/pbrt-v3;C++;Non-web lib;y;n;y;;;FALSE;User;FALSE;FALSE;835;5062;59;1210;2856599;7567500;99,9
+Watfaq/clash-rs;;BackupTime/clash;Go;System;y;y;y;;;FALSE;Organization;FALSE;FALSE;1601;75;140;90;1885810;;96,8
+waycrate/swhkd;;baskerville/sxhkd;C;System;y;n;y;;;FALSE;Organization;FALSE;FALSE;833;2930;71;147;82068;165560;88,5
+web-infra-dev/rspack;;webpack/webpack;JavaScript;Tool;y;y;y;;;FALSE;Organization;FALSE;FALSE;12600;65946;784;9379;11617828;7488584;59,2
+webonnx/wonnx;;microsoft/onnxruntime;C++;System;y;y;y;;;FALSE;Organization;TRUE;FALSE;1746;19797;72;3814;732697;283852424;91,7
+wilsonzlin/minify-html;;Same;C;Web lib;y;;y;;;TRUE;User;FALSE;;1143;;62;;281907;;86,7
+WorksApplications/sudachi.rs;;WorksApplications/SudachiPy;Python;Non-web lib;y;y;y;;;TRUE;Organization;FALSE;TRUE;436;429;47;52;724340;262857;88,6
+xxnuo/open-coreui;;open-webui/open-webui;Python;Web lib;y;y;y;;;FALSE;User;FALSE;FALSE;1519;130608;108;18510;4753254;8895119;34,5
+y-crdt/y-crdt;;yjs/yjs;JavaScript;Non-web lib;n;n;y;;;FALSE;Organization;FALSE;FALSE;2016;21583;121;758;2405848;576982;75,9
+yutto-dev/yutto;;Same;Python;App;y;;y;;;TRUE;Organization;FALSE;;1788;;148;;382848;;15,3
+zargony/fuse-rs;;libfuse/libfuse;C;Non-web lib;y;n;;;;FALSE;User;FALSE;FALSE;1135;5994;131;1258;131160;1407292;100,0
+zhihu/rucene;;apache/lucene;Java;System;n;n;;;;FALSE;Organization;FALSE;FALSE;1016;3401;64;1330;3493366;44803497;100,0
+zombodb/zombodb;;Same;C;System;y;;y;;;TRUE;User;TRUE;;4735;;214;;12064167;;16,4

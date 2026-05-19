@@ -34,98 +34,6 @@ class Metric:
     def save(self, folder: str):
         pass
 
-class SumValue:
-    project: str
-    phase: str
-    value: float
-
-    def __init__(self, project: str, phase: str, value: float):
-        self.project = project
-        self.phase = phase
-        self.value = value
-
-class SumMetric(Metric):
-    value: list[SumValue]
-    rust_split: bool
-
-    def __init__(self, name: str, rust_split: bool = False):
-        super().__init__(name)
-        self.value = []
-        self.rust_split = rust_split
-
-    def add(self, as_project: str, date: datetime, value: float, is_rust: bool = False):
-        project = get_for_project(as_project)
-        phase = get_phase(as_project, date, self.rust_split and is_rust)
-        
-        existing_value = next((v for v in self.value if v.project == project and v.phase == phase), None)
-        if existing_value:
-            existing_value.value += value
-        else:
-            self.value.append(SumValue(project=project, phase=phase, value=value))
-
-    def add_many(self, items: list[tuple[str, datetime, float, bool]]):
-        for project, date, value, is_rust in items:
-            self.add(project, date, value, is_rust)
-
-    def save(self, folder: str):
-        date = datetime.now().isoformat()
-        path = f"{folder}/all.csv"
-        os.makedirs(folder, exist_ok=True)
-        with open(path, "a") as f:
-            for value in self.value:
-                f.write(f"{value.project},{self.name},{date},{value.phase},{value.value}\n")
-
-class RatioValue:
-    project: str
-    phase: str
-    num: float
-    den: float
-
-    def __init__(self, project: str, phase: str, num: float, den: float):
-        self.project = project
-        self.phase = phase
-        self.num = num
-        self.den = den
-
-class RatioMetric(Metric):
-    value: list[RatioValue]
-    rust_split: bool
-
-    def __init__(self, name: str, rust_split: bool = False):
-        super().__init__(name)
-        self.value = []
-        self.rust_split = rust_split
-
-    def add_num(self, as_project: str, date: datetime, value: float, is_rust: bool = False):
-        project = get_for_project(as_project)
-        phase = get_phase(as_project, date, self.rust_split and is_rust)
-        
-        existing_value = next((v for v in self.value if v.project == project and v.phase == phase), None)
-        if existing_value:
-            existing_value.num += value
-        else:
-            self.value.append(RatioValue(project=project, phase=phase, num=value, den=0))
-
-    def add_den(self, as_project: str, date: datetime, value: float, is_rust: bool = False):
-        project = get_for_project(as_project)
-        phase = get_phase(as_project, date, self.rust_split and is_rust)
-
-        existing_value = next((v for v in self.value if v.project == project and v.phase == phase), None)
-        if existing_value:
-            existing_value.den += value
-        else:
-            self.value.append(RatioValue(project=project, phase=phase, num=0, den=value))
-
-    def save(self, folder: str):
-        date = datetime.now().isoformat()
-        path = f"{folder}/all.csv"
-        os.makedirs(folder, exist_ok=True)
-        with open(path, "a") as f:
-            for value in self.value:
-                f.write(f"{value.project},{self.name},{date},{value.phase},{value.num/value.den if value.den != 0 else 0}\n")
-                f.write(f"{value.project},{self.name}_num,{date},{value.phase},{value.num}\n")
-                f.write(f"{value.project},{self.name}_den,{date},{value.phase},{value.den}\n")
-
 class TimestampValue:
     project: str
     phase: str
@@ -165,84 +73,6 @@ class TimestampMetric(Metric):
         for project, date, value, is_rust in items:
             self.add(project, date, value, is_rust)
 
-    def save_phase_result(self, folder: str, name: str, func, min_items: int = 0):
-        date = datetime.now().isoformat()
-        path = f"{folder}/all.csv"
-        os.makedirs(folder, exist_ok=True)
-        with open(path, "a") as f:
-            phases = set(v.phase for v in self.values)
-            for project in set(v.project for v in self.values):
-                for phase in phases:
-                    items = [v for v in self.values if v.phase == phase and v.project == project and v.value is not None]
-                    if len(items) < min_items:
-                        continue
-                    result = func(items) if items else None
-                    f.write(f"{project},{name},{date},{phase},{result}\n")
-
-    def save_phase_trend_slope(self, folder: str):
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_trend_slope", 
-            lambda items: linregress([v.date.timestamp() / (3600 * 24 * 30) for v in items], [v.value for v in items]).slope,
-            min_items=2
-        )
-    
-    def save_phase_trend_pvalue(self, folder: str):
-        if min([v.value for v in self.values if v.value is not None]) == max([v.value for v in self.values if v.value is not None]):
-            print(f"Warning: All values for {self.name} are the same, skipping trend slope calculation")
-            return
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_trend_pvalue", 
-            lambda items: linregress([v.date.timestamp() / (3600 * 24 * 30) for v in items], [v.value for v in items]).pvalue,
-            min_items=2
-        )
-
-    def save_phase_trend_rvalue(self, folder: str):
-        if min([v.value for v in self.values if v.value is not None]) == max([v.value for v in self.values if v.value is not None]):
-            print(f"Warning: All values for {self.name} are the same, skipping trend slope calculation")
-            return
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_trend_rvalue", 
-            lambda items: linregress([v.date.timestamp() / (3600 * 24 * 30) for v in items], [v.value for v in items]).rvalue,
-            min_items=2
-        )
-
-    def save_phase_mean(self, folder: str):
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_mean", 
-            lambda items: np.mean([v.value for v in items]),
-            min_items=1
-        )
-
-    def save_phase_median(self, folder: str):
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_median", 
-            lambda items: np.median([v.value for v in items]),
-            min_items=1
-        )
-
-    def save_phase_emwa(self, folder: str, span: int = 5):
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_emwa", 
-            lambda items: pl.Series(
-                [v.value for v in sorted(items, key=lambda x: x.date)], dtype=pl.Float64
-            ).ewm_mean(span=span, adjust=False).tail(1).item() if items else None,
-            min_items=1
-        )
-
-    def save_phase_stdev(self, folder: str):
-        self.save_phase_result(
-            folder, 
-            f"{self.name}_stdev", 
-            lambda items: np.std([v.value for v in items]),
-            min_items=1
-        )
-
     def save(self, folder: str):
         date = datetime.now().isoformat()
         path = f"{folder}/{self.name}-{date}.csv"
@@ -251,13 +81,6 @@ class TimestampMetric(Metric):
             f.write("for_project,phase,date,value\n")
             for value in self.values:
                 f.write(f"{value.project},{value.phase},{value.date.isoformat()},{value.value}\n")
-        # self.save_phase_trend_slope(folder)
-        # self.save_phase_trend_pvalue(folder)
-        # self.save_phase_trend_rvalue(folder)
-        # self.save_phase_mean(folder)
-        # self.save_phase_median(folder)
-        # self.save_phase_emwa(folder)
-        # self.save_phase_stdev(folder)
 
 class MonthRatioValue:
     project: str
@@ -323,13 +146,6 @@ class MonthRatioMetric(TimestampMetric):
             f.write("for_project,phase,date,value,num,den\n")
             for value in self.values:
                 f.write(f"{value.project},{value.phase},{value.month.isoformat()},{value.num/value.den if value.den != 0 else 0},{value.num},{value.den}\n")
-        self.save_phase_trend_slope(folder)
-        self.save_phase_trend_pvalue(folder)
-        self.save_phase_trend_rvalue(folder)
-        self.save_phase_mean(folder)
-        self.save_phase_median(folder)
-        self.save_phase_emwa(folder)
-        self.save_phase_stdev(folder)
 
 class MonthValue:
     project: str
@@ -379,10 +195,3 @@ class MonthMetric(TimestampMetric):
             f.write("for_project,phase,date,value\n")
             for value in self.values:
                 f.write(f"{value.project},{value.phase},{value.month.isoformat()},{value.value}\n")
-        self.save_phase_trend_slope(folder)
-        self.save_phase_trend_pvalue(folder)
-        self.save_phase_trend_rvalue(folder)
-        self.save_phase_mean(folder)
-        self.save_phase_median(folder)
-        self.save_phase_emwa(folder)
-        self.save_phase_stdev(folder)

@@ -1,0 +1,39 @@
+Project;Original project;Original languages;Domain;Stars;Forks;Size;Rust percentage
+trifectatechfoundation/zlib-rs;madler/zlib;C;Non-web lib;617;41;1369020;89,0
+cjdelisle/cjdns;;C;System;5377;600;3135547;12,4
+appsinacup/godot-rapier-physics;;C,C++;Non-web lib;835;55;1323477;70,8
+kubetail-org/kubetail;;Go;App;1640;121;1326636;13,1
+KiwiTalk/KiwiTalk;;TypeScript;App;738;90;414612;49,9
+memorysafety/rav1d;videolan/dav1d;C;Non-web lib;619;68;12750965;17,1
+jneem/nnnoiseless;xiph/rnnoise;C;Non-web lib;339;18;101691;90,3
+m-labs/artiq;;C;System;513;225;3992940;21,0
+cooklang/cookcli;;Swift;App;1225;87;871446;56,3
+neondatabase/appdotbuild-agent;;Python;Tool;751;113;2575667;22,8
+tectonic-typesetting/tectonic;;C,C++;System;4672;194;5930744;27,2
+spieglt/FlyingCarpet;;Go;App;5018;234;295634;50,9
+stacked-git/stgit;;Python;App;648;71;1643860;58,9
+noahbald/oxvg;svg/svgo;JavaScript;Web lib;523;10;1613750;97,5
+max-baz/wluma;;C;Non-web lib;907;41;143357;98,0
+rustfs/rustfs;minio/minio;Go;System;24341;1045;13999575;98,3
+ariebovenberg/whenever;;Python;Non-web lib;2320;33;2281508;41,2
+jely2002/youtube-dl-gui;;JavaScript;App;7951;585;696322;37,4
+typedb/typedb;;Java;System;4275;364;6098498;98,0
+intentee/paddler;;Go;System;1512;83;928338;69,5
+SeaDve/Kooha;;Python;App;3317;93;218788;96,2
+brndnmtthws/dryoc;jedisct1/libsodium;C;Non-web lib;332;19;582529;100,0
+kkoomen/vim-doge;;TypeScript;App;1061;53;165475;70,7
+fosskers/aura;;Haskell;App;1886;121;996894;29,7
+yuezk/GlobalProtect-openconnect;;C++;App;2053;234;266270;85,5
+oreboot/oreboot;coreboot/coreboot;C;System;1767;114;1523680;96,0
+nautechsystems/nautilus_trader;;Cython;App;21723;2613;52130425;64,2
+gschup/ggrs;pond3r/ggpo;C++;System;640;32;248936;100,0
+eraserhd/parinfer-rust;parinfer/parinfer.js;JavaScript;Tool;615;50;185026;73,6
+ixy-languages/ixy.rs;emmericp/ixy;C;System;316;37;442127;99,9
+BitBoxSwiss/bitbox02-firmware;;C;System;349;127;8025432;26,7
+libjxl/jxl-rs;libjxl/libjxl;C++;Non-web lib;528;36;2308240;98,3
+apache/arrow-rs;apache/arrow;C++;System;3425;1140;15798256;99,6
+numaproj/numaflow;;Go;System;2446;151;6733234;57,6
+amir20/dtop;;Go;App;1008;26;289386;95,7
+NixOS/nixos-search;;Python;App;538;150;302594;31,9
+OISF/suricata;;C;System;6116;1678;19570385;24,0
+pubky/pkarr;;JavaScript;Non-web lib;360824;79,6;360824;79,6

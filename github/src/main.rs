@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use tokio::time::{sleep, Duration};
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -251,6 +252,138 @@ async fn fetch_security_advisories(project: &InputData, results_folder: &Path, c
     Ok(())
 }
 
+enum OwnerType {
+    User,
+    Organization,
+}
+struct ProjectCharacteristics {
+    project: String,
+    original_project: Option<String>,
+    same_owner: bool,
+    owner_type: OwnerType,
+    archived: bool,
+    original_archived: Option<bool>,
+    stars: u64,
+    original_stars: Option<u64>,
+    forks: u64,
+    original_forks: Option<u64>,
+    size: u64,
+    original_size: Option<u64>,
+    rust_percentage: f64,
+}
+
+impl ProjectCharacteristics {
+    fn to_header() -> String {
+        "project,original_project,same_owner,owner_type,archived,original_archived,stars,original_stars,forks,original_forks,size,original_size,rust_percentage\n".to_string()
+    }
+
+    fn to_csv(&self) -> String {
+        format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            self.project,
+            self.original_project.as_deref().unwrap_or(""),
+            self.same_owner,
+            match self.owner_type {
+                OwnerType::User => "User",
+                OwnerType::Organization => "Organization",
+            },
+            self.archived,
+            self.original_archived.map(|a| a.to_string()).unwrap_or_else(|| "".to_string()),
+            self.stars,
+            self.original_stars.map(|s| s.to_string()).unwrap_or_else(|| "".to_string()),
+            self.forks,
+            self.original_forks.map(|f| f.to_string()).unwrap_or_else(|| "".to_string()),
+            self.size,
+            self.original_size.map(|s| s.to_string()).unwrap_or_else(|| "".to_string()),
+            self.rust_percentage,
+        )
+    }
+}
+
+async fn fetch_characteristics(project: &InputData, client: &Client, writer: &mut fs::File) -> AppResult<()> {
+    println!("Fetching characteristics for {}/{} and {}/{}", project.author, project.name, project.orig_author.as_deref().unwrap_or(""), project.orig_name.as_deref().unwrap_or(""));
+    let project_response = fetch_with_retry(client, &format!(
+        "https://api.github.com/repos/{}/{}",
+        project.author, project.name
+    )).await?;
+
+    let languages_response = fetch_with_retry(client, &format!(
+        "https://api.github.com/repos/{}/{}/languages",
+        project.author, project.name
+    )).await?;
+    let size = languages_response.as_object().map(|langs| langs.values().filter_map(|v| v.as_u64()).sum()).unwrap_or(0);
+    let rust_percentage = languages_response.get("Rust").and_then(|v| v.as_u64()).map(|rust_size| rust_size as f64 / size as f64 * 100.0).unwrap_or(0.0);
+    
+    let characteristics = if let Some(original_author) = &project.orig_author && let Some(original_name) = &project.orig_name {
+        let original_project_response = fetch_with_retry(client, &format!(
+            "https://api.github.com/repos/{}/{}",
+            original_author, original_name
+        )).await?;
+        let original_languages_response = fetch_with_retry(client, &format!(
+            "https://api.github.com/repos/{}/{}/languages",
+            original_author, original_name
+        )).await?;
+
+        ProjectCharacteristics {
+            project: format!("{}/{}", project.author, project.name),
+            original_project: Some(format!("{}/{}", original_author, original_name)),
+            same_owner: project.author == *original_author,
+            owner_type: if project_response.get("owner").and_then(|o| o.get("type")).and_then(|t| t.as_str()) == Some("Organization") {
+                OwnerType::Organization
+            } else {
+                OwnerType::User
+            },
+            archived: project_response.get("archived").and_then(|a| a.as_bool()).unwrap_or(false),
+            original_archived: original_project_response.get("archived").and_then(|a| a.as_bool()).map(Some).unwrap_or(None),
+            stars: project_response.get("stargazers_count").and_then(|s| s.as_u64()).unwrap_or(0),
+            original_stars: original_project_response.get("stargazers_count").and_then(|s| s.as_u64()).map(Some).unwrap_or(None),
+            forks: project_response.get("forks_count").and_then(|f| f.as_u64()).unwrap_or(0),
+            original_forks: original_project_response.get("forks_count").and_then(|f| f.as_u64()).map(Some).unwrap_or(None),
+            size: size,
+            original_size: original_languages_response.as_object().map(|langs| langs.values().filter_map(|v| v.as_u64()).sum()).map(Some).unwrap_or(None),
+            rust_percentage: rust_percentage,
+        }
+    } else {
+        ProjectCharacteristics {
+            project: format!("{}/{}", project.author, project.name),
+            original_project: None,
+            same_owner: true,
+            owner_type: if project_response.get("owner").and_then(|o| o.get("type")).and_then(|t| t.as_str()) == Some("Organization") {
+                OwnerType::Organization
+            } else {
+                OwnerType::User
+            },
+            archived: project_response.get("archived").and_then(|a| a.as_bool()).unwrap_or(false),
+            original_archived: None,
+            stars: project_response.get("stargazers_count").and_then(|s| s.as_u64()).unwrap_or(0),
+            original_stars: None,
+            forks: project_response.get("forks_count").and_then(|f| f.as_u64()).unwrap_or(0),
+            original_forks: None,
+            size: size,
+            original_size: None,
+            rust_percentage: rust_percentage,
+        }
+    };
+
+    writer.write_all(characteristics.to_csv().as_bytes()).await?;
+
+    Ok(())
+}
+
+async fn fetch_all(author: String, name: String, results_folder: &Path, client: &Client) -> AppResult<()> {
+    let project = InputData { author, name, orig_author: None, orig_name: None };
+    
+    if !results_folder.exists() {
+        fs::create_dir_all(results_folder).await?;
+    }
+
+    fetch_issues(&project, results_folder, client).await?;
+    fetch_releases(&project, results_folder, client).await?;
+    fetch_security_advisories(&project, results_folder, client).await?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> AppResult<()> {
     dotenv().ok();
@@ -264,25 +397,41 @@ async fn main() -> AppResult<()> {
             .ok_or("missing result path argument")?,
     );
 
+    let characteristics_file = result_root.join("characteristics.csv");
+    let mut writer = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&characteristics_file)
+        .await?;
+    writer.write_all(ProjectCharacteristics::to_header().as_bytes()).await?;
+
     for line in lines {
         let results_folder = PathBuf::from(format!("{}/{}_{}", result_root.display(), line.author, line.name));
+
+        fetch_characteristics(&line, &client, &mut writer).await?;
         
-        if results_folder.exists() {
-            eprintln!("Results folder for {} already exists", &line.name);
-        } else {
-            fs::create_dir_all(&results_folder).await?;
-        }
-
-        if let Err(e) = fetch_issues(&line, &results_folder, &client).await {
-            eprintln!("Error fetching issues for {}: {}", &line.name, e);
-        }
-
-        // if let Err(e) = fetch_releases(&line, &results_folder, &client).await {
-        //     eprintln!("Error fetching releases for {}: {}", &line.name, e);
+        // if results_folder.exists() {
+        //     println!("Results folder for {} already exists", &line.name);
+        // } else {
+        //     fs::create_dir_all(&results_folder).await?;
         // }
 
-        // if let Err(e) = fetch_security_advisories(&line, &results_folder, &client).await {
-        //     eprintln!("Error fetching security advisories for {}: {}", &line.name, e);
+        // if let Err(e) = fetch_all(line.author.clone(), line.name.clone(), &results_folder, &client).await {
+        //     eprintln!("Failed to fetch data for {}/{}: {}", line.author, line.name, e);
+        // }
+
+        // if let Some(orig_author) = &line.orig_author && let Some(orig_name) = &line.orig_name {
+        //     let orig_results_folder = PathBuf::from(format!("{}/{}_{}", result_root.display(), orig_author, orig_name));
+            
+        //     if orig_results_folder.exists() {
+        //         println!("Results folder for original project {} already exists", &orig_name);
+        //     } else {
+        //         fs::create_dir_all(&orig_results_folder).await?;
+        //     }
+
+        //     if let Err(e) = fetch_all(orig_author.clone(), orig_name.clone(), &orig_results_folder, &client).await {
+        //         eprintln!("Failed to fetch data for original project {}/{}: {}", orig_author, orig_name, e);
+        //     }
         // }
     }
 
